@@ -1,5 +1,6 @@
 """Content generation pipeline orchestrating the full workflow."""
 
+import random
 import time
 from typing import Optional
 
@@ -7,7 +8,35 @@ from src.ai_service import AIService
 from src.gsheet_client import GSheetClient
 from src.image_generator import ImageGenerator
 from src.storage_client import StorageClient
-from src.trend_fetcher import TrendFetcher
+from src.trend_fetcher import TrendFetcher, TrendItem
+
+POST_FORMATS = {
+    "hot_take": """
+        Write a HOT TAKE post reacting to this news. Take a contrarian or bold stance.
+        Start with a strong opinion that challenges conventional wisdom.
+        Example opener: "Unpopular opinion:" or "Hot take:" or "Everyone's excited about X, but..."
+    """,
+    "implication": """
+        Write a post explaining what this news ACTUALLY MEANS for developers in their daily work.
+        Connect the headline to real, practical impact on coding/engineering workflows.
+        Example opener: "What this actually means for your codebase:" or "Here's why devs should care:"
+    """,
+    "prediction": """
+        Write a BOLD PREDICTION post based on this news.
+        Project forward what this could mean for the industry in 6-12 months.
+        Example opener: "Calling it now:" or "Mark my words:" or "This is the beginning of..."
+    """,
+    "reaction": """
+        Write an AUTHENTIC REACTION post from the perspective of a senior software engineer.
+        Share a genuine thought or personal insight triggered by this news.
+        Example opener: "As someone who's been building for 10+ years..." or "My honest reaction:"
+    """,
+    "lesson": """
+        Write a LESSON LEARNED post that extracts a timeless principle from this news.
+        Connect the current event to a broader truth about software engineering.
+        Example opener: "This proves what I've always said:" or "The real lesson here:"
+    """,
+}
 
 
 class ContentPipeline:
@@ -41,25 +70,49 @@ class ContentPipeline:
         print(f"Waiting {self.delay_seconds}s to respect rate limits...")
         time.sleep(self.delay_seconds)
 
-    def _generate_post_content(self, topic: str) -> Optional[str]:
-        """Generate post text content for a given topic."""
+    def _generate_post_content(self, trend: TrendItem) -> Optional[str]:
+        """Generate post text content based on a trending news item."""
+        format_name = random.choice(list(POST_FORMATS.keys()))
+        format_instructions = POST_FORMATS[format_name]
+        print(f"Using post format: {format_name}")
+
         prompt = f"""
-        You're a tech thought leader posting daily on social media about software engineering life.
+        You are a tech thought leader with 100K+ followers on LinkedIn/X. Your posts consistently go viral
+        because they're insightful, relatable, and spark discussion among software engineers and tech professionals.
 
-        Craft a viral post on '{topic}' that hooks all software engineers (frontend, backend, full-stack, etc.):
+        **NEWS TO REACT TO:**
+        Headline: {trend.title}
+        Summary: {trend.body}
+        Source: {trend.source}
 
-        - Open with bold/contrarian hook on a universal dev pain (e.g., "Everyone chases X, but...")
-        - Drop 1 unexpected insight from real SDE experience (keep <5 sentences, simple words)
-        - End with reply bait: question like "What's your take?" or polarizing takeaway
-        - STRICTLY UNDER 280 characters
-        - Short, punchy sentences.
-        - No hashtags, no AI mentions, no *emphasis*
+        **POST FORMAT:**
+        {format_instructions}
+
+        **TARGET AUDIENCE:**
+        Software engineers, data engineers, DevOps, ML engineers, tech leads, CTOs, and tech-curious professionals.
+        They scroll fast - you have 1 second to hook them.
+
+        **VIRALITY BEST PRACTICES:**
+        - First line is EVERYTHING - make it scroll-stopping (bold claim, surprising stat, or relatable pain)
+        - Be specific, not generic (name actual technologies, real scenarios)
+        - Write like you talk - conversational, not corporate
+        - Create tension or curiosity that makes people want to engage
+        - End with a question or provocative statement that invites replies
+        - Use short sentences. Break up ideas. Like this.
+
+        **CONSTRAINTS:**
+        - STRICTLY 200-270 characters (we need room for links)
+        - No hashtags
+        - No "As an AI" or similar phrases
+        - No asterisks for emphasis (*word*)
+        - No emojis
+        - Output ONLY the post text, nothing else
         """
         return self.ai_service.generate_response(prompt)
 
-    def _generate_and_upload_image(self, topic: str, post_content: str) -> Optional[str]:
+    def _generate_and_upload_image(self, trend: TrendItem, post_content: str) -> Optional[str]:
         """Generate image for the post and upload to imgBB, return public URL."""
-        image_prompt = self.ai_service.generate_image_prompt(topic, post_content=post_content)
+        image_prompt = self.ai_service.generate_image_prompt(trend.title, post_content=post_content)
         if not image_prompt:
             print("Failed to generate image prompt")
             return None
@@ -80,18 +133,20 @@ class ContentPipeline:
         """Run the content generation pipeline for the specified number of posts."""
         print(f"Starting content generation pipeline for {post_count} posts...")
 
-        topics = self.trend_fetcher.fetch_trending_topics(post_count)
-        if not topics:
+        trends = self.trend_fetcher.fetch_trending_topics(post_count)
+        if not trends:
             print("No topics found, aborting pipeline")
             return
 
-        for i, topic in enumerate(topics):
-            print(f"\n--- Generating post {i + 1}/{post_count} for topic: {topic} ---")
+        for i, trend in enumerate(trends):
+            print(f"\n--- Generating post {i + 1}/{post_count} ---")
+            print(f"Topic: {trend.title}")
+            print(f"Source: {trend.source}")
 
-            post_content = self._generate_post_content(topic)
+            post_content = self._generate_post_content(trend)
             if not post_content:
-                print(f"Failed to generate content for topic: {topic}")
-                self.gsheet_client.append_row(topic, "", None, status="FAILED")
+                print(f"Failed to generate content for topic: {trend.title}")
+                self.gsheet_client.append_row(trend.title, "", None, status="FAILED")
                 continue
 
             post_content = post_content.strip().strip('"\'')
@@ -99,12 +154,13 @@ class ContentPipeline:
 
             self._delay()
 
-            image_url = self._generate_and_upload_image(topic, post_content)
+            image_url = self._generate_and_upload_image(trend, post_content)
 
+            keywords_col = f"{trend.title[:50]}" + (f" | {trend.url}" if trend.url else "")
             status = "PENDING" if image_url else "FAILED"
-            self.gsheet_client.append_row(topic, post_content, image_url, status=status)
+            self.gsheet_client.append_row(keywords_col, post_content, image_url, status=status)
 
-            if i < len(topics) - 1:
+            if i < len(trends) - 1:
                 self._delay()
 
         print(f"\nPipeline complete. Generated {post_count} posts.")
