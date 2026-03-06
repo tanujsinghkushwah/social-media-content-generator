@@ -1,7 +1,10 @@
-tweepy==4.14.0
 python-dotenv==1.0.0
 pillow==10.0.0
-schedule==1.2.0
 requests==2.31.0
 firebase-admin>=6.5.0
-litellm 
+litellm
+duckduckgo-search
+gspread
+google-api-python-client
+google-auth
+pytz

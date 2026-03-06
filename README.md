@@ -1,165 +1,169 @@
-# AskMeGenie Twitter Bot
+# Social Media Content Generator
 
-Twitter: [@AskMeGenie](https://x.com/AskMeGenie)
-
-A perplexity-style Twitter bot for tech content that:
-- Searches for posts based on tech/programming keywords
-- Interacts with posts using AI responses
-- Generates tech content posts (text + images)
-- Responds to mentions automatically
+Automated pipeline for generating viral tech content for social media platforms. Generates post text + images and logs them to a Google Sheet for review and scheduling.
 
 ## Features
 
-- **Keyword Monitoring**: Automatically searches for tweets containing specific keywords (Interview, Software Engineer, Leetcode, System Design, etc.)
-- **AI-Powered Interactions**: Uses **OpenRouter** (default: `arcee-ai/trinity-large-preview:free`) for text generation and **Cloudflare Workers AI** for image generation.
-- **Content Generation**: Creates high-quality tech posts with optional images
-- **Mention Responses**: Automatically responds to any mentions of your account
-- **Modular Architecture**: Clean, maintainable codebase organized by functionality
-- **GitHub Actions Integration**: Automated scheduling via GitHub Actions workflows
+- **Trending Topic Discovery**: Fetches trending tech topics via web search (DuckDuckGo) with fallback to curated keywords
+- **AI-Powered Content**: Uses LiteLLM with OpenRouter for text generation
+- **Image Generation**: Creates engaging images via Cloudflare Workers AI (Flux model) with Pillow fallback
+- **Image Hosting**: Uploads images to imgBB (free, no card required) for public URLs
+- **Google Sheets Logging**: Records all generated content with timestamps, topics, content, image URLs, and status
+- **Configurable Post Count**: Generate multiple posts per run via `POST_COUNT` setting
+- **Rate Limit Friendly**: Configurable delays between LLM calls to respect free tier limits
+- **GitHub Actions**: Automated daily runs at 9 AM IST
+
+## Pipeline Flow
+
+```
+1. Fetch trending topics (web search + fallback keywords)
+2. Generate viral post text via LiteLLM/OpenRouter
+3. Generate image prompt via LiteLLM
+4. Generate image via Cloudflare Workers AI
+5. Upload image to imgBB → get public URL
+6. Append row to Google Sheet: [Date, Topic, Content, Image URL, Status]
+```
 
 ## Setup
 
-1. Clone this repository
-2. Install dependencies:
-   ```
-   pip install -r requirements.txt
-   ```
-3. Create a `.env` file in the project root with the following variables:
-   ```
-   # Twitter API credentials
-   API_KEY=your_twitter_api_key
-   API_KEY_SECRET=your_twitter_api_key_secret
-   ACCESS_TOKEN=your_twitter_access_token
-   ACCESS_TOKEN_SECRET=your_twitter_access_token_secret
-   BEARER_TOKEN=your_twitter_bearer_token
+### 1. Clone and Install
 
-   # Content generation (OpenRouter)
-   OPENROUTER_API=your_openrouter_api_key
-   CONTENT_MODEL=arcee-ai/trinity-large-preview:free
+```bash
+git clone <repo-url>
+cd social-media-content-generator
+pip install -r requirements.txt
+```
 
-   # Image generation (Cloudflare Workers AI)
-   CLOUDFLARE_ACCOUNT_ID=your_cloudflare_account_id
-   CLOUDFLARE_API_TOKEN=your_cloudflare_api_token
-   IMAGE_MODEL=@cf/black-forest-labs/flux-1-schnell
-   ```
-4. Obtain Twitter API credentials from the [Twitter Developer Portal](https://developer.twitter.com/)
-5. Get an API key from [OpenRouter](https://openrouter.ai/) for content generation and create a Workers AI API token from the [Cloudflare dashboard](https://dash.cloudflare.com/?to=/:account/ai/workers-ai) for image generation.
+### 2. Environment Variables
 
-## Firebase Remote Config Setup
+Create a `.env` file:
 
-This project uses Firebase Remote Config to manage environment variables. Follow these steps to set it up:
+```env
+# Content generation (OpenRouter via LiteLLM)
+OPENROUTER_API=your_openrouter_api_key
+CONTENT_MODEL=arcee-ai/trinity-large-preview:free
+
+# Image generation (Cloudflare Workers AI)
+CLOUDFLARE_ACCOUNT_ID=your_cloudflare_account_id
+CLOUDFLARE_API_TOKEN=your_cloudflare_api_token
+IMAGE_MODEL=@cf/black-forest-labs/flux-1-schnell
+
+# Image hosting (imgBB - free)
+IMGBB_API_KEY=your_imgbb_api_key
+
+# Google Sheets
+GSHEET_ID=your_google_sheet_id
+
+# Pipeline settings
+POST_COUNT=3
+LLM_CALL_DELAY_SECONDS=15
+```
+
+### 3. Get API Keys
+
+| Service | URL | Notes |
+|---------|-----|-------|
+| OpenRouter | https://openrouter.ai/ | Free tier available |
+| Cloudflare | https://dash.cloudflare.com/ | Workers AI free tier |
+| imgBB | https://api.imgbb.com/ | Free, email signup only |
+
+### 4. Google Sheets Setup
+
+1. Create a new Google Sheet
+2. Copy the Sheet ID from the URL: `docs.google.com/spreadsheets/d/{SHEET_ID}/edit`
+3. Share the sheet with your Firebase service account email (Editor access)
+   - Find the email in `serviceAccountKey.json` → `client_email`
+4. Enable **Google Sheets API** in your GCP project
+
+### 5. Firebase Setup (for Remote Config)
 
 1. Create a Firebase project at [Firebase Console](https://console.firebase.google.com/)
-2. Set up Remote Config in your Firebase project
-3. Add the following parameters to your Remote Config:
-   - `API_KEY` - Twitter API Key
-   - `API_KEY_SECRET` - Twitter API Key Secret
-   - `ACCESS_TOKEN` - Twitter Access Token
-   - `ACCESS_TOKEN_SECRET` - Twitter Access Token Secret
-   - `BEARER_TOKEN` - Twitter Bearer Token (optional)
-   - `OPENROUTER_API` - OpenRouter API key for content generation
-   - `CONTENT_MODEL` - Text generation model (default: `arcee-ai/trinity-large-preview:free`)
-   - `CLOUDFLARE_ACCOUNT_ID` - Cloudflare account ID for Workers AI
-   - `CLOUDFLARE_API_TOKEN` - Cloudflare Workers AI API token
-   - `IMAGE_MODEL` - Image generation model (default: `@cf/black-forest-labs/flux-1-schnell`)
-
-4. Set up Firebase Admin SDK authentication:
-   - For local development:
-     - Generate a service account key from Firebase Console → Project Settings → Service Accounts
-     - Set the environment variable: `export GOOGLE_APPLICATION_CREDENTIALS="/path/to/serviceAccountKey.json"`
-   - For deployment:
-     - Configure appropriate credentials based on your hosting environment
-
-5. Install the requirements: `pip install -r requirements.txt`
-
-Note: The bot will fetch config values from Firebase Remote Config first, then fall back to `.env` file if not found in Remote Config.
+2. Generate a service account key: Project Settings → Service Accounts → Generate New Private Key
+3. Save as `serviceAccountKey.json` in project root
+4. (Optional) Add config values to Firebase Remote Config for centralized management
 
 ## Project Structure
-
-The bot is organized into a modular structure for better maintainability:
 
 ```
 src/
 ├── __init__.py          # Package initialization
-├── constants.py         # Constants (keywords, defaults)
-├── config.py            # Configuration management (Firebase, env vars)
-├── ai_service.py        # AI service for responses (OpenRouter)
-├── image_generator.py   # Image generation (Cloudflare Workers AI)
-├── twitter_client.py    # Twitter API operations
-├── bot.py               # Main bot class orchestrating all services
-└── main.py              # Entry point with task execution logic
+├── constants.py         # Keywords, default config values
+├── config.py            # Firebase Remote Config + env var loading
+├── ai_service.py        # LiteLLM wrapper for text generation
+├── image_generator.py   # Cloudflare Workers AI + Pillow fallback
+├── storage_client.py    # imgBB image upload client
+├── gsheet_client.py     # Google Sheets client with auto-headers
+├── trend_fetcher.py     # DuckDuckGo search for trending topics
+├── pipeline.py          # Main pipeline orchestrating all services
+└── main.py              # Entry point
 
 run_bot.py               # Root-level entry point
 ```
 
 ## Usage
 
-### Running Manually
+### Run Locally
 
-Run specific tasks:
 ```bash
-# Post a new tech tweet
-python run_bot.py --task post
+# Activate virtual environment
+source venv/bin/activate  # Linux/Mac
+.\venv\Scripts\Activate.ps1  # Windows PowerShell
 
-# Respond to mentions
-python run_bot.py --task mentions
-
-# Interact with keyword tweets
-python run_bot.py --task keyword
-
-# Run all tasks
-python run_bot.py --task all
+# Run the pipeline
+python run_bot.py
 ```
 
-## Scheduling with GitHub Actions
+### Output
 
-The bot uses GitHub Actions for automated scheduling. The workflow file `.github/workflows/bot.yml` is already configured. You just need to:
+The pipeline generates rows in your Google Sheet with columns:
+- **Date (IST)**: Timestamp when generated
+- **Topic/Keywords**: The topic used for generation
+- **Post Content**: The generated viral post text
+- **Image URL**: Clickable link to view the image on imgBB
+- **Status**: PENDING (ready to post) / FAILED (generation issue)
 
-1. Add your API keys as secrets in your GitHub repository:
-   - Go to Settings → Secrets and variables → Actions
-   - Add the following secrets:
-     - `API_KEY`
-     - `API_KEY_SECRET`
-     - `ACCESS_TOKEN`
-     - `ACCESS_TOKEN_SECRET`
-     - `BEARER_TOKEN`
-     - `OPENROUTER_API`
-     - `CLOUDFLARE_ACCOUNT_ID`
-     - `CLOUDFLARE_API_TOKEN`
-     - `FIREBASE_SERVICE_ACCOUNT` (JSON content of your Firebase service account key)
+## GitHub Actions (Automated Daily Runs)
 
-2. The workflow will automatically run on the scheduled times defined in the cron expression.
+The workflow runs daily at 9:00 AM IST (3:30 AM UTC).
 
-The current workflow configuration:
-- Runs on a cron schedule (configurable in `.github/workflows/bot.yml`)
-- Supports manual triggers via `workflow_dispatch`
-- Executes the bot with the specified task (default: `post`)
+### Required Secrets
 
-You can modify the schedule in `.github/workflows/bot.yml` to adjust when the bot runs.
+Add these in GitHub → Settings → Secrets and variables → Actions:
+
+| Secret | Description |
+|--------|-------------|
+| `FIREBASE_SERVICE_ACCOUNT` | JSON content of `serviceAccountKey.json` |
+| `OPENROUTER_API` | OpenRouter API key |
+| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare account ID |
+| `CLOUDFLARE_API_TOKEN` | Cloudflare Workers AI token |
+| `IMAGE_MODEL` | Image model (optional) |
+| `CONTENT_MODEL` | Content model (optional) |
+| `GSHEET_ID` | Google Sheet ID |
+| `IMGBB_API_KEY` | imgBB API key |
+| `POST_COUNT` | Number of posts to generate (e.g., `6`) |
+
+### Manual Trigger
+
+You can also trigger the workflow manually from GitHub Actions → Run Content Generator → Run workflow.
 
 ## Customization
 
-### Keywords
-Modify the keywords to search for in `src/constants.py`:
-- Edit the `KEYWORDS` list to add or remove keywords
+### Keywords (Fallback Topics)
 
-### AI Prompts
-Customize the bot's tone and responses:
-- **Keyword interactions**: Edit prompts in `src/bot.py` → `interact_with_keyword_tweets()`
-- **Mention responses**: Edit prompts in `src/bot.py` → `respond_to_mentions()`
-- **Tech posts**: Edit prompts in `src/bot.py` → `generate_tech_post()`
-- **Image prompts**: Edit image generation prompts in `src/ai_service.py` → `generate_image_prompt()`
+Edit `src/constants.py` → `KEYWORDS` list to customize fallback topics when web search returns no results.
 
-### Model Configuration
-- Change the models in Firebase Remote Config or `.env` file:
-  - Set `CONTENT_MODEL` for text generation (default: `Qwen/Qwen3-Coder-30B-A3B-Instruct`)
-  - Set `IMAGE_MODEL` for image generation (default: `stabilityai/stable-diffusion-xl-base-1.0`)
+### Post Prompts
 
-### Scheduling
-- Modify the GitHub Actions workflow schedule in `.github/workflows/bot.yml`
-- Change the cron expression to adjust when the bot runs
-- Modify the `--task` parameter to change which task runs on schedule
+Edit `src/pipeline.py` → `_generate_post_content()` to customize the viral post generation prompt.
+
+### Image Prompts
+
+Edit `src/ai_service.py` → `generate_image_prompt()` to customize the image generation style.
+
+### Schedule
+
+Edit `.github/workflows/bot.yml` → `cron` expression to change the run schedule.
 
 ## License
 
-MIT 
+MIT

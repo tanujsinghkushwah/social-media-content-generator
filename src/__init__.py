@@ -1,18 +1,14 @@
-"""AskMeGenie Twitter Bot - A modular Twitter bot for tech content."""
+"""Social Media Content Generator - Generate tech content for social media platforms."""
 
-__version__ = "1.0.0"
+__version__ = "2.0.0"
 
-from src.bot import GenieTweetBot
+from src.pipeline import ContentPipeline
 from src.config import load_config
 from src.constants import KEYWORDS, ULTIMATE_FALLBACK_DEFAULTS
 
 __all__ = [
-    'GenieTweetBot',
+    'ContentPipeline',
     'load_config',
     'KEYWORDS',
     'ULTIMATE_FALLBACK_DEFAULTS',
 ]
-
-
-
-
