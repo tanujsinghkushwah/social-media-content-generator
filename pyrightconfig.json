@@ -7,7 +7,7 @@
     "venv",
     "**/__pycache__"
   ],
-  "pythonVersion": "3.10",
+  "pythonVersion": "3.11",
   "typeCheckingMode": "basic",
   "reportMissingImports": true,
   "reportMissingTypeStubs": false

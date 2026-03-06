@@ -4,6 +4,7 @@ from datetime import datetime
 from typing import Optional
 
 import gspread
+from gspread.utils import ValueInputOption
 from google.oauth2 import service_account
 import pytz
 
@@ -38,33 +39,46 @@ class GSheetClient:
             self._sheet = spreadsheet.sheet1
         return self._sheet
 
+    def _has_valid_headers(self) -> bool:
+        """Check if the sheet already has valid headers in row 1."""
+        try:
+            first_row = self.sheet.row_values(1)
+            if not first_row:
+                return False
+            return first_row[:len(HEADERS)] == HEADERS
+        except Exception:
+            return False
+
     def _ensure_headers(self):
         """Add headers if the sheet is empty or missing headers."""
         if self._headers_checked:
             return
 
         try:
-            first_row = self.sheet.row_values(1)
-            if not first_row or first_row[0] != HEADERS[0]:
+            if not self._has_valid_headers():
                 self.sheet.insert_row(HEADERS, index=1)
-                self._format_header_row()
                 print("Added column headers to sheet")
+            else:
+                print("Headers already exist")
+            self._format_header_row()
             self._headers_checked = True
         except Exception as e:
             print(f"Error checking/adding headers: {e}")
             self._headers_checked = True
 
     def _format_header_row(self):
-        """Format the header row with bold text and background color."""
+        """Format the header row with bold text and blue background."""
         try:
             self.sheet.format("A1:E1", {
-                "textFormat": {"bold": True},
-                "backgroundColor": {"red": 0.2, "green": 0.4, "blue": 0.6},
+                "textFormat": {
+                    "bold": True,
+                    "foregroundColor": {"red": 1, "green": 1, "blue": 1},
+                },
+                "backgroundColor": {"red": 0.13, "green": 0.33, "blue": 0.53},
                 "horizontalAlignment": "CENTER",
             })
-            self.sheet.format("A1:E1", {
-                "textFormat": {"bold": True, "foregroundColor": {"red": 1, "green": 1, "blue": 1}},
-            })
+            self.sheet.freeze(rows=1)
+            print("Formatted and froze header row")
         except Exception as e:
             print(f"Error formatting header row: {e}")
 
@@ -83,7 +97,7 @@ class GSheetClient:
 
         row = [timestamp, keywords, content, image_cell, status]
         try:
-            self.sheet.append_row(row, value_input_option="USER_ENTERED")
+            self.sheet.append_row(row, value_input_option=ValueInputOption.user_entered)
             print(f"Appended row to sheet: {keywords[:30]}...")
             return True
         except Exception as e:
