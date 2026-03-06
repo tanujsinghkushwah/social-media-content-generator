@@ -1,48 +1,63 @@
-"""AI service using Hugging Face Inference API."""
+"""AI service using OpenRouter API for text generation."""
 
-import os
-from typing import Optional, List, Dict
-from huggingface_hub import InferenceClient
+from typing import Dict, List, Optional
+
+import requests
+
+OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
+
 
 class AIService:
-    """Hugging Face AI service for text generation."""
-    
-    def __init__(self, token: str, model_name: str):
-        """Initialize with HF token and model."""
-        self.token = token
+    """OpenRouter AI service for text generation."""
+
+    def __init__(self, api_key: str, model_name: str):
+        """Initialize with OpenRouter API key and model."""
+        self.api_key = api_key
         self.model_name = model_name
-        self.client = InferenceClient(api_key=self.token)
         self.conversation_history: Dict[str, List[Dict[str, str]]] = {}
-        
-    def generate_response(self, prompt: str, conversation_id: Optional[str] = None) -> Optional[str]:
-        """Generate AI response using Hugging Face Inference API."""
-        
+
+    def generate_response(
+        self, prompt: str, conversation_id: Optional[str] = None
+    ) -> Optional[str]:
+        """Generate AI response using OpenRouter API."""
         messages = []
         if conversation_id and conversation_id in self.conversation_history:
             messages = list(self.conversation_history[conversation_id])
-        
+
         current_messages = messages + [{"role": "user", "content": prompt}]
-        
+
         try:
-            print(f"Generating response using HF Inference ({self.model_name})...")
-            response = self.client.chat_completion(
-                messages=current_messages,
-                model=self.model_name,
-                max_tokens=600,
-                stream=False
+            print(f"Generating response using OpenRouter ({self.model_name})...")
+            response = requests.post(
+                OPENROUTER_URL,
+                headers={
+                    "Authorization": f"Bearer {self.api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": self.model_name,
+                    "messages": current_messages,
+                    "max_tokens": 600,
+                    "stream": False,
+                },
+                timeout=60,
             )
-            response_text = response.choices[0].message.content
-            
+            response.raise_for_status()
+            data = response.json()
+            response_text = data["choices"][0]["message"]["content"]
+
             if conversation_id:
                 current_messages.append({"role": "assistant", "content": response_text})
                 self.conversation_history[conversation_id] = current_messages
-                
+
             return response_text
         except Exception as e:
-            print(f"Error generating AI response with HF Inference: {e}")
+            print(f"Error generating AI response with OpenRouter: {e}")
             return None
 
-    def generate_image_prompt(self, topic: str, tweet_content: Optional[str] = None) -> Optional[str]:
+    def generate_image_prompt(
+        self, topic: str, tweet_content: Optional[str] = None
+    ) -> Optional[str]:
         """Generate a detailed image creation prompt from topic and tweet content."""
         if tweet_content:
             prompt = f"""
@@ -76,12 +91,12 @@ class AIService:
 
             Make it thumb-stopping for devs scrolling X.
             """
-        
+
         response_text = self.generate_response(prompt)
-        
+
         if not response_text:
             return None
-        
+
         image_prompt = response_text.strip()[:500]
         print(f"Generated image prompt: {image_prompt}")
         return image_prompt

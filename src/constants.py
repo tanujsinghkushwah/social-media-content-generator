@@ -13,9 +13,11 @@ ULTIMATE_FALLBACK_DEFAULTS = {
     'ACCESS_TOKEN': 'YOUR_FALLBACK_ACCESS_TOKEN_IN_CODE',
     'ACCESS_TOKEN_SECRET': 'YOUR_FALLBACK_ACCESS_TOKEN_SECRET_IN_CODE',
     'BEARER_TOKEN': '',
-    'IMAGE_MODEL': 'stabilityai/stable-diffusion-xl-base-1.0',
-    'CONTENT_MODEL': 'Qwen/Qwen3-Coder-30B-A3B-Instruct',
-    'HF_TOKEN': ''
+    'IMAGE_MODEL': '@cf/black-forest-labs/flux-1-schnell',
+    'CONTENT_MODEL': 'arcee-ai/trinity-large-preview:free',
+    'OPENROUTER_API': '',
+    'CLOUDFLARE_ACCOUNT_ID': '',
+    'CLOUDFLARE_API_TOKEN': '',
 }
 
 
