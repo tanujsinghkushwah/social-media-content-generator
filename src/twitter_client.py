@@ -1,6 +1,7 @@
 """Twitter API client for posting tweets and interacting with Twitter."""
 
 from typing import Optional
+
 import time
 import tweepy
 from src.rate_limiter import TwitterRateLimiter
@@ -9,8 +10,14 @@ from src.rate_limiter import TwitterRateLimiter
 class TwitterClient:
     """Client for Twitter API operations."""
     
-    def __init__(self, api_key: str, api_key_secret: str, access_token: str, 
-                 access_token_secret: str, bearer_token: str = None):
+    def __init__(
+        self,
+        api_key: str,
+        api_key_secret: str,
+        access_token: str,
+        access_token_secret: str,
+        bearer_token: Optional[str] = None,
+    ):
         """Initialize Twitter client with credentials."""
         # Initialize rate limiter
         self.rate_limiter = TwitterRateLimiter()
@@ -34,8 +41,10 @@ class TwitterClient:
         # Get own user ID
         try:
             self.me = self.client.get_me()
-            self.user_id = self.me.data.id
-            print(f"Twitter client initialized for user: {self.me.data.username}")
+            me_data = getattr(self.me, "data", None)
+            self.user_id = me_data.id if me_data is not None else None
+            username = getattr(me_data, "username", None) if me_data else None
+            print(f"Twitter client initialized for user: {username}")
         except Exception as e:
             print(f"Warning: Could not get user information: {e}")
             print("Some features like mention tracking may not work properly.")
@@ -54,11 +63,11 @@ class TwitterClient:
                 tweet_fields=['created_at', 'author_id', 'conversation_id']
             )
             
-            if not tweets.data:
+            tweets_data = getattr(tweets, "data", None)
+            if not tweets_data:
                 print(f"No tweets found for query: {query}")
                 return []
-                
-            return tweets.data
+            return tweets_data
         except Exception as e:
             print(f"Error searching tweets: {e}")
             return []
@@ -73,16 +82,22 @@ class TwitterClient:
                 tweet_fields=['created_at', 'author_id', 'conversation_id']
             )
             
-            if not mentions.data:
+            mentions_data = getattr(mentions, "data", None)
+            if not mentions_data:
                 print("No new mentions found")
                 return []
-                
-            return mentions.data
+            return mentions_data
         except Exception as e:
             print(f"Error getting mentions: {e}")
             return []
     
-    def post_tweet(self, text: str, media_ids: list = None, max_retries: int = 3, retry_delay: int = 10):
+    def post_tweet(
+        self,
+        text: str,
+        media_ids: Optional[list] = None,
+        max_retries: int = 3,
+        retry_delay: int = 10,
+    ):
         """Post a tweet with optional media."""
         # Check rate limits before posting
         can_post, message = self.rate_limiter.can_post()
@@ -101,7 +116,6 @@ class TwitterClient:
                 print(f"DEBUG: Media IDs: {media_ids}")
                 
                 if media_ids:
-                    # Convert to strings if they are not already, as v2 API preferred
                     media_ids_str = [str(m) for m in media_ids]
                     response = self.client.create_tweet(
                         text=text,
@@ -109,8 +123,9 @@ class TwitterClient:
                     )
                 else:
                     response = self.client.create_tweet(text=text)
-                
-                tweet_id = response.data['id']
+
+                response_data = getattr(response, "data", None)
+                tweet_id = response_data["id"] if response_data else None
                 print(f"Tweet posted successfully: {tweet_id}")
                 
                 # Record successful post for rate limiting
@@ -123,7 +138,7 @@ class TwitterClient:
                 
                 # Check if it's a rate limit error
                 if '429' in error_str or 'Too Many Requests' in error_str:
-                    print(f"⚠️ Rate limit hit from Twitter API!")
+                    print(f"[!] Rate limit hit from Twitter API!")
                     print(self.rate_limiter.get_usage_report())
                     
                     # On final retry, set lockout to prevent further wasted calls
@@ -132,13 +147,15 @@ class TwitterClient:
                 
                 if retry_count < max_retries:
                     print(f"Error posting tweet: {e}. Retrying in {retry_delay} seconds... (Attempt {retry_count}/{max_retries})")
-                    if hasattr(e, 'response') and e.response is not None:
-                        print(f"DEBUG: API Error Detail: {e.response.text}")
+                    err_resp = getattr(e, "response", None)
+                    if err_resp is not None:
+                        print(f"DEBUG: API Error Detail: {getattr(err_resp, 'text', '')}")
                     time.sleep(retry_delay)
                 else:
                     print(f"Failed to post tweet after {max_retries} attempts: {e}")
-                    if hasattr(e, 'response') and e.response is not None:
-                        print(f"DEBUG: Final API Error Detail: {e.response.text}")
+                    err_resp = getattr(e, "response", None)
+                    if err_resp is not None:
+                        print(f"DEBUG: Final API Error Detail: {getattr(err_resp, 'text', '')}")
                     return None
     
     def reply_to_tweet(self, tweet_id: int, text: str, max_retries: int = 3, retry_delay: int = 10):
@@ -159,7 +176,8 @@ class TwitterClient:
                     text=text,
                     in_reply_to_tweet_id=tweet_id
                 )
-                reply_id = response.data['id']
+                response_data = getattr(response, "data", None)
+                reply_id = response_data["id"] if response_data else None
                 print(f"Reply posted successfully: {reply_id}")
                 
                 # Record successful reply for rate limiting
@@ -172,7 +190,7 @@ class TwitterClient:
                 
                 # Check if it's a rate limit error
                 if '429' in error_str or 'Too Many Requests' in error_str:
-                    print(f"⚠️ Rate limit hit from Twitter API!")
+                    print(f"[!] Rate limit hit from Twitter API!")
                     print(self.rate_limiter.get_usage_report())
                     
                     # On final retry, set lockout to prevent further wasted calls
@@ -208,7 +226,8 @@ class TwitterClient:
     def get_tweet(self, tweet_id: int):
         """Get a tweet by ID."""
         try:
-            tweet = self.client.get_tweet(tweet_id).data
+            response = self.client.get_tweet(tweet_id)
+            tweet = getattr(response, "data", None)
             return tweet
         except Exception as e:
             print(f"Error getting tweet: {e}")

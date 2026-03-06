@@ -2,33 +2,63 @@
 
 import io
 import random
+from typing import Optional
+
 import requests
-import json
 import base64
 from PIL import Image, ImageDraw, ImageFont
 import textwrap
 
+CLOUDFLARE_DEFAULT_MODEL = "@cf/black-forest-labs/flux-1-schnell"
+
+
 class ImageGenerator:
-    """Image generation using Hugging Face Inference API with local fallback."""
-    
-    def __init__(self, hf_token: str = None, model_name: str = "stabilityai/stable-diffusion-xl-base-1.0"):
-        """Initialize with HF token."""
-        self.hf_token = hf_token
-        self.model = model_name
-        self.client = None
-        if self.hf_token:
-            from huggingface_hub import InferenceClient
-            self.client = InferenceClient(
-                provider="hf-inference",
-                api_key=self.hf_token
-            )
+    """Image generation using Cloudflare Workers AI with Pillow fallback."""
+
+    def __init__(
+        self,
+        cloudflare_account_id: Optional[str] = None,
+        cloudflare_api_token: Optional[str] = None,
+        model_name: Optional[str] = None,
+    ):
+        """Initialize with Cloudflare credentials."""
+        self.cloudflare_account_id = cloudflare_account_id
+        self.cloudflare_api_token = cloudflare_api_token
+        self.model = model_name or CLOUDFLARE_DEFAULT_MODEL
+
+    def _generate_with_cloudflare(self, prompt: str, steps: int = 4) -> Optional[io.BytesIO]:
+        """Generate image via Cloudflare Workers AI REST API. Returns None on failure."""
+        if not self.cloudflare_account_id or not self.cloudflare_api_token:
+            return None
+        url = (
+            f"https://api.cloudflare.com/client/v4/accounts/{self.cloudflare_account_id}"
+            f"/ai/run/{self.model}"
+        )
+        headers = {"Authorization": f"Bearer {self.cloudflare_api_token}"}
+        payload = {"prompt": prompt[:2048], "steps": min(max(steps, 1), 8)}
+        try:
+            response = requests.post(url, headers=headers, json=payload, timeout=60)
+            if not response.ok:
+                return None
+            data = response.json()
+            if not data.get("success"):
+                return None
+            image_b64 = (data.get("result") or {}).get("image")
+            if not image_b64:
+                return None
+            image_data = base64.b64decode(image_b64)
+            img_buffer = io.BytesIO(image_data)
+            img_buffer.seek(0)
+            return img_buffer
+        except Exception:
+            return None
     
     def create_tech_themed_image(self, topic: str, title: str) -> io.BytesIO:
         """Generate a tech-themed image locally using Pillow (fallback)."""
         try:
             print(f"Creating local tech-themed image for: {topic}")
             width, height = 1200, 630
-            image = Image.new('RGB', (width, height), color='white')
+            image = Image.new('RGB', (width, height), (255, 255, 255))  # type: ignore[arg-type]
             draw = ImageDraw.Draw(image)
 
             for y in range(height):
@@ -77,7 +107,7 @@ class ImageGenerator:
                     title_font = ImageFont.load_default()
                     subtitle_font = ImageFont.load_default()
 
-                overlay = Image.new('RGBA', (width, 200), (0, 0, 0, 150))
+                overlay = Image.new('RGBA', (width, 200), (0, 0, 0, 150))  # type: ignore[arg-type]
                 image.paste(overlay, (0, height-200), overlay)
                 title_wrapped = textwrap.fill(title, width=30)
 
@@ -105,7 +135,7 @@ class ImageGenerator:
             
         except Exception as e:
             print(f"Error creating local image: {e}")
-            image = Image.new('RGB', (800, 500), color=(20, 40, 80))
+            image = Image.new('RGB', (800, 500), (20, 40, 80))  # type: ignore[arg-type]
             
             img_buffer = io.BytesIO()
             image.save(img_buffer, format='JPEG')
@@ -113,35 +143,16 @@ class ImageGenerator:
             return img_buffer
     
     def generate_image(self, prompt: str, fallback_generator=None) -> io.BytesIO:
-        """Generate image using Hugging Face Inference API with fallback."""
-        try:
-            print(f"Generating image using HF Inference ({self.model}) with prompt: {prompt[:50]}...")
-            
-            if not self.client:
-                raise ValueError("No HF Token provided or client not initialized")
-
-            # output is a PIL.Image object
-            image = self.client.text_to_image(
-                prompt,
-                model=self.model,
-            )
-            
-            print(f"Image generated successfully.")
-            
-            img_buffer = io.BytesIO()
-            image.save(img_buffer, format='JPEG', quality=95)
-            
-            # Save locally for verification
-            image.save("generated_image.jpg")
-            print("Image saved to 'generated_image.jpg'")
-            
+        """Generate image via Cloudflare Workers AI, with Pillow fallback on failure."""
+        img_buffer = self._generate_with_cloudflare(prompt)
+        if img_buffer is not None:
+            print(f"Image generated with Cloudflare Workers AI ({self.model}).")
+            with open("generated_image.jpg", "wb") as f:
+                f.write(img_buffer.getvalue())
             img_buffer.seek(0)
             return img_buffer
 
-        except Exception as e:
-            print(f"Error generating image with HF Inference: {e}")
-            print("Falling back to local image generation...")
-            if fallback_generator:
-                return fallback_generator(prompt, prompt[:30])
-            else:
-                return self.create_tech_themed_image(prompt, prompt[:30])
+        print("Falling back to local image generation...")
+        if fallback_generator:
+            return fallback_generator(prompt, prompt[:30])
+        return self.create_tech_themed_image(prompt, prompt[:30])

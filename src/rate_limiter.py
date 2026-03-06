@@ -189,7 +189,7 @@ class TwitterRateLimiter:
         # Check daily limit (soft limit to spread usage)
         if remaining['daily_remaining'] <= 0:
             return False, (
-                f"⚠️ Daily limit reached! Posted {remaining['daily_used']}/{remaining['daily_limit']} today. "
+                f"[!] Daily limit reached! Posted {remaining['daily_used']}/{remaining['daily_limit']} today. "
                 f"You still have {remaining['monthly_remaining']} posts this month. "
                 f"Consider waiting until tomorrow to spread usage."
             )
@@ -197,12 +197,12 @@ class TwitterRateLimiter:
         # Warning if approaching limit
         if remaining['monthly_remaining'] <= warn_threshold:
             message = (
-                f"⚠️ Warning: Only {remaining['monthly_remaining']} posts remaining this month! "
+                f"[!] Warning: Only {remaining['monthly_remaining']} posts remaining this month! "
                 f"Used {remaining['monthly_used']}/{remaining['monthly_limit']}."
             )
         else:
             message = (
-                f"✅ Rate limit OK. "
+                f"[OK] Rate limit OK. "
                 f"Monthly: {remaining['monthly_used']}/{remaining['monthly_limit']} used, "
                 f"Daily: {remaining['daily_used']}/{remaining['daily_limit']} used."
             )

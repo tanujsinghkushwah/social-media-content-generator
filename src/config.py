@@ -61,7 +61,9 @@ def load_config():
         'BEARER_TOKEN': get_config_value(evaluated_remote_config, 'BEARER_TOKEN', ULTIMATE_FALLBACK_DEFAULTS['BEARER_TOKEN']),
         'IMAGE_MODEL': get_config_value(evaluated_remote_config, 'IMAGE_MODEL', ULTIMATE_FALLBACK_DEFAULTS['IMAGE_MODEL']),
         'CONTENT_MODEL': get_config_value(evaluated_remote_config, 'CONTENT_MODEL', ULTIMATE_FALLBACK_DEFAULTS['CONTENT_MODEL']),
-        'HF_TOKEN': get_config_value(evaluated_remote_config, 'HF_TOKEN', ULTIMATE_FALLBACK_DEFAULTS['HF_TOKEN']),
+        'OPENROUTER_API': get_config_value(evaluated_remote_config, 'OPENROUTER_API', ULTIMATE_FALLBACK_DEFAULTS['OPENROUTER_API']),
+        'CLOUDFLARE_ACCOUNT_ID': get_config_value(evaluated_remote_config, 'CLOUDFLARE_ACCOUNT_ID', ULTIMATE_FALLBACK_DEFAULTS['CLOUDFLARE_ACCOUNT_ID']),
+        'CLOUDFLARE_API_TOKEN': get_config_value(evaluated_remote_config, 'CLOUDFLARE_API_TOKEN', ULTIMATE_FALLBACK_DEFAULTS['CLOUDFLARE_API_TOKEN']),
     }
     
     return config

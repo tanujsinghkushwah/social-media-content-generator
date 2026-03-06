@@ -11,7 +11,7 @@ A perplexity-style Twitter bot for tech content that:
 ## Features
 
 - **Keyword Monitoring**: Automatically searches for tweets containing specific keywords (Interview, Software Engineer, Leetcode, System Design, etc.)
-- **AI-Powered Interactions**: Uses **Hugging Face** (default: `Qwen/Qwen3-Coder-30B-A3B-Instruct`) for text generation and intelligent responses.
+- **AI-Powered Interactions**: Uses **OpenRouter** (default: `arcee-ai/trinity-large-preview:free`) for text generation and **Cloudflare Workers AI** for image generation.
 - **Content Generation**: Creates high-quality tech posts with optional images
 - **Mention Responses**: Automatically responds to any mentions of your account
 - **Modular Architecture**: Clean, maintainable codebase organized by functionality
@@ -33,13 +33,17 @@ A perplexity-style Twitter bot for tech content that:
    ACCESS_TOKEN_SECRET=your_twitter_access_token_secret
    BEARER_TOKEN=your_twitter_bearer_token
 
-   # AI Provider Configuration (Hugging Face)
-   HF_TOKEN=your_huggingface_token
-   CONTENT_MODEL=Qwen/Qwen3-Coder-30B-A3B-Instruct  # Model for text generation
-   IMAGE_MODEL=stabilityai/stable-diffusion-xl-base-1.0  # Model for image generation
+   # Content generation (OpenRouter)
+   OPENROUTER_API=your_openrouter_api_key
+   CONTENT_MODEL=arcee-ai/trinity-large-preview:free
+
+   # Image generation (Cloudflare Workers AI)
+   CLOUDFLARE_ACCOUNT_ID=your_cloudflare_account_id
+   CLOUDFLARE_API_TOKEN=your_cloudflare_api_token
+   IMAGE_MODEL=@cf/black-forest-labs/flux-1-schnell
    ```
 4. Obtain Twitter API credentials from the [Twitter Developer Portal](https://developer.twitter.com/)
-5. Get a Hugging Face Access Token from [Hugging Face Settings](https://huggingface.co/settings/tokens)
+5. Get an API key from [OpenRouter](https://openrouter.ai/) for content generation and create a Workers AI API token from the [Cloudflare dashboard](https://dash.cloudflare.com/?to=/:account/ai/workers-ai) for image generation.
 
 ## Firebase Remote Config Setup
 
@@ -53,9 +57,11 @@ This project uses Firebase Remote Config to manage environment variables. Follow
    - `ACCESS_TOKEN` - Twitter Access Token
    - `ACCESS_TOKEN_SECRET` - Twitter Access Token Secret
    - `BEARER_TOKEN` - Twitter Bearer Token (optional)
-   - `HF_TOKEN` - Hugging Face Token
-   - `CONTENT_MODEL` - Text generation model (default: `Qwen/Qwen3-Coder-30B-A3B-Instruct`)
-   - `IMAGE_MODEL` - Image generation model (default: `stabilityai/stable-diffusion-xl-base-1.0`)
+   - `OPENROUTER_API` - OpenRouter API key for content generation
+   - `CONTENT_MODEL` - Text generation model (default: `arcee-ai/trinity-large-preview:free`)
+   - `CLOUDFLARE_ACCOUNT_ID` - Cloudflare account ID for Workers AI
+   - `CLOUDFLARE_API_TOKEN` - Cloudflare Workers AI API token
+   - `IMAGE_MODEL` - Image generation model (default: `@cf/black-forest-labs/flux-1-schnell`)
 
 4. Set up Firebase Admin SDK authentication:
    - For local development:
@@ -77,8 +83,8 @@ src/
 ├── __init__.py          # Package initialization
 ├── constants.py         # Constants (keywords, defaults)
 ├── config.py            # Configuration management (Firebase, env vars)
-├── ai_service.py        # AI service for responses (Hugging Face)
-├── image_generator.py   # Image generation (Hugging Face Inference API)
+├── ai_service.py        # AI service for responses (OpenRouter)
+├── image_generator.py   # Image generation (Cloudflare Workers AI)
 ├── twitter_client.py    # Twitter API operations
 ├── bot.py               # Main bot class orchestrating all services
 └── main.py              # Entry point with task execution logic
@@ -117,7 +123,9 @@ The bot uses GitHub Actions for automated scheduling. The workflow file `.github
      - `ACCESS_TOKEN`
      - `ACCESS_TOKEN_SECRET`
      - `BEARER_TOKEN`
-     - `HF_TOKEN`
+     - `OPENROUTER_API`
+     - `CLOUDFLARE_ACCOUNT_ID`
+     - `CLOUDFLARE_API_TOKEN`
      - `FIREBASE_SERVICE_ACCOUNT` (JSON content of your Firebase service account key)
 
 2. The workflow will automatically run on the scheduled times defined in the cron expression.

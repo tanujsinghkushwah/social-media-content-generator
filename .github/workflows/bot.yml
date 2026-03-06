@@ -28,7 +28,9 @@ jobs:
           ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN }}
           ACCESS_TOKEN_SECRET: ${{ secrets.ACCESS_TOKEN_SECRET }}
           BEARER_TOKEN: ${{ secrets.BEARER_TOKEN }}
-          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          OPENROUTER_API: ${{ secrets.OPENROUTER_API }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           IMAGE_MODEL: ${{ secrets.IMAGE_MODEL }}
           CONTENT_MODEL: ${{ secrets.CONTENT_MODEL }}
         run: |
