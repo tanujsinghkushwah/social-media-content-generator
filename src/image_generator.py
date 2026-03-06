@@ -26,7 +26,7 @@ class ImageGenerator:
         self.cloudflare_api_token = cloudflare_api_token
         self.model = model_name or CLOUDFLARE_DEFAULT_MODEL
 
-    def _generate_with_cloudflare(self, prompt: str, steps: int = 4) -> Optional[io.BytesIO]:
+    def _generate_with_cloudflare(self, prompt: str, steps: int = 4) -> Optional[bytes]:
         """Generate image via Cloudflare Workers AI REST API. Returns None on failure."""
         if not self.cloudflare_account_id or not self.cloudflare_api_token:
             return None
@@ -46,14 +46,11 @@ class ImageGenerator:
             image_b64 = (data.get("result") or {}).get("image")
             if not image_b64:
                 return None
-            image_data = base64.b64decode(image_b64)
-            img_buffer = io.BytesIO(image_data)
-            img_buffer.seek(0)
-            return img_buffer
+            return base64.b64decode(image_b64)
         except Exception:
             return None
     
-    def create_tech_themed_image(self, topic: str, title: str) -> io.BytesIO:
+    def create_tech_themed_image(self, topic: str, title: str) -> bytes:
         """Generate a tech-themed image locally using Pillow (fallback)."""
         try:
             print(f"Creating local tech-themed image for: {topic}")
@@ -62,7 +59,7 @@ class ImageGenerator:
             draw = ImageDraw.Draw(image)
 
             for y in range(height):
-                r = int(20 + (50 * (1 - y / height)))  # Dark blue to lighter blue
+                r = int(20 + (50 * (1 - y / height)))
                 g = int(40 + (80 * (y / height)))
                 b = int(80 + (120 * (y / height)))
                 for x in range(width):
@@ -117,7 +114,7 @@ class ImageGenerator:
                          anchor="mm", 
                          align="center")
 
-                draw.text((width//2, height-40), "AskMeGenie", 
+                draw.text((width//2, height-40), "TechContentGen", 
                          fill=(200, 200, 255), 
                          font=subtitle_font,
                          anchor="mm")
@@ -125,32 +122,23 @@ class ImageGenerator:
             except Exception as e:
                 print(f"Error adding text to image: {e}")
 
-            image_path = "generated_image.jpg"
-            image.save(image_path)
-            
             img_buffer = io.BytesIO()
             image.save(img_buffer, format='JPEG', quality=95)
-            img_buffer.seek(0)
-            return img_buffer
+            return img_buffer.getvalue()
             
         except Exception as e:
             print(f"Error creating local image: {e}")
             image = Image.new('RGB', (800, 500), (20, 40, 80))  # type: ignore[arg-type]
-            
             img_buffer = io.BytesIO()
             image.save(img_buffer, format='JPEG')
-            img_buffer.seek(0)
-            return img_buffer
+            return img_buffer.getvalue()
     
-    def generate_image(self, prompt: str, fallback_generator=None) -> io.BytesIO:
+    def generate_image(self, prompt: str, fallback_generator=None) -> Optional[bytes]:
         """Generate image via Cloudflare Workers AI, with Pillow fallback on failure."""
-        img_buffer = self._generate_with_cloudflare(prompt)
-        if img_buffer is not None:
+        image_bytes = self._generate_with_cloudflare(prompt)
+        if image_bytes is not None:
             print(f"Image generated with Cloudflare Workers AI ({self.model}).")
-            with open("generated_image.jpg", "wb") as f:
-                f.write(img_buffer.getvalue())
-            img_buffer.seek(0)
-            return img_buffer
+            return image_bytes
 
         print("Falling back to local image generation...")
         if fallback_generator:

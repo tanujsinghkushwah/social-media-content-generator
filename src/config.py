@@ -54,16 +54,15 @@ def load_config():
     """Load and return all configuration values."""
     evaluated_remote_config = initialize_firebase_and_load_config()
     config = {
-        'API_KEY': get_config_value(evaluated_remote_config, 'API_KEY', ULTIMATE_FALLBACK_DEFAULTS['API_KEY']),
-        'API_KEY_SECRET': get_config_value(evaluated_remote_config, 'API_KEY_SECRET', ULTIMATE_FALLBACK_DEFAULTS['API_KEY_SECRET']),
-        'ACCESS_TOKEN': get_config_value(evaluated_remote_config, 'ACCESS_TOKEN', ULTIMATE_FALLBACK_DEFAULTS['ACCESS_TOKEN']),
-        'ACCESS_TOKEN_SECRET': get_config_value(evaluated_remote_config, 'ACCESS_TOKEN_SECRET', ULTIMATE_FALLBACK_DEFAULTS['ACCESS_TOKEN_SECRET']),
-        'BEARER_TOKEN': get_config_value(evaluated_remote_config, 'BEARER_TOKEN', ULTIMATE_FALLBACK_DEFAULTS['BEARER_TOKEN']),
         'IMAGE_MODEL': get_config_value(evaluated_remote_config, 'IMAGE_MODEL', ULTIMATE_FALLBACK_DEFAULTS['IMAGE_MODEL']),
         'CONTENT_MODEL': get_config_value(evaluated_remote_config, 'CONTENT_MODEL', ULTIMATE_FALLBACK_DEFAULTS['CONTENT_MODEL']),
         'OPENROUTER_API': get_config_value(evaluated_remote_config, 'OPENROUTER_API', ULTIMATE_FALLBACK_DEFAULTS['OPENROUTER_API']),
         'CLOUDFLARE_ACCOUNT_ID': get_config_value(evaluated_remote_config, 'CLOUDFLARE_ACCOUNT_ID', ULTIMATE_FALLBACK_DEFAULTS['CLOUDFLARE_ACCOUNT_ID']),
         'CLOUDFLARE_API_TOKEN': get_config_value(evaluated_remote_config, 'CLOUDFLARE_API_TOKEN', ULTIMATE_FALLBACK_DEFAULTS['CLOUDFLARE_API_TOKEN']),
+        'GSHEET_ID': get_config_value(evaluated_remote_config, 'GSHEET_ID', ULTIMATE_FALLBACK_DEFAULTS['GSHEET_ID']),
+        'IMGBB_API_KEY': get_config_value(evaluated_remote_config, 'IMGBB_API_KEY', ULTIMATE_FALLBACK_DEFAULTS['IMGBB_API_KEY']),
+        'POST_COUNT': int(get_config_value(evaluated_remote_config, 'POST_COUNT', ULTIMATE_FALLBACK_DEFAULTS['POST_COUNT'])),
+        'LLM_CALL_DELAY_SECONDS': int(get_config_value(evaluated_remote_config, 'LLM_CALL_DELAY_SECONDS', ULTIMATE_FALLBACK_DEFAULTS['LLM_CALL_DELAY_SECONDS'])),
     }
     
     return config
