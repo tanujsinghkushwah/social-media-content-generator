@@ -58,7 +58,7 @@ class ContentPipeline:
         )
         self.trend_fetcher = TrendFetcher()
         self.storage_client = StorageClient(
-            api_key=config.get("IMGBB_API_KEY", ""),
+            imgbb_api_key=config.get("IMGBB_API_KEY", ""),
         )
         self.gsheet_client = GSheetClient(
             service_account_file="serviceAccountKey.json",
