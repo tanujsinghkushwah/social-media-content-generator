@@ -31,5 +31,8 @@ jobs:
           GSHEET_ID: ${{ secrets.GSHEET_ID }}
           IMGBB_API_KEY: ${{ secrets.IMGBB_API_KEY }}
           POST_COUNT: ${{ secrets.POST_COUNT }}
+          CLOUDINARY_CLOUD_NAME: ${{ secrets.CLOUDINARY_CLOUD_NAME }}
+          CLOUDINARY_API_KEY: ${{ secrets.CLOUDINARY_API_KEY }}
+          CLOUDINARY_API_SECRET: ${{ secrets.CLOUDINARY_API_SECRET }}
         run: |
           python run_bot.py
