@@ -15,7 +15,7 @@ SCOPES = [
 
 IST = pytz.timezone("Asia/Kolkata")
 
-HEADERS = ["Date (IST)", "Topic/Keywords", "Post Content", "Image URL", "Status"]
+HEADERS = ["Date (IST)", "Topic/Keywords", "X Post", "Instagram Post", "Image URL", "Status"]
 
 
 class GSheetClient:
@@ -69,7 +69,7 @@ class GSheetClient:
     def _format_header_row(self):
         """Format the header row with bold text and blue background."""
         try:
-            self.sheet.format("A1:E1", {
+            self.sheet.format("A1:F1", {
                 "textFormat": {
                     "bold": True,
                     "foregroundColor": {"red": 1, "green": 1, "blue": 1},
@@ -85,7 +85,8 @@ class GSheetClient:
     def append_row(
         self,
         keywords: str,
-        content: str,
+        x_post: str,
+        instagram_post: str,
         image_url: Optional[str],
         status: str = "PENDING",
     ) -> bool:
@@ -95,7 +96,7 @@ class GSheetClient:
         timestamp = datetime.now(IST).strftime("%Y-%m-%d %H:%M:%S")
         image_cell = f'=HYPERLINK("{image_url}", "View Image")' if image_url else ""
 
-        row = [timestamp, keywords, content, image_cell, status]
+        row = [timestamp, keywords, x_post, instagram_post, image_cell, status]
         try:
             self.sheet.append_row(row, value_input_option=ValueInputOption.user_entered)
             print(f"Appended row to sheet: {keywords[:30]}...")
@@ -107,7 +108,7 @@ class GSheetClient:
     def update_status(self, row_index: int, status: str) -> bool:
         """Update the status column for a given row."""
         try:
-            self.sheet.update_cell(row_index, 5, status)
+            self.sheet.update_cell(row_index, 6, status)
             return True
         except Exception as e:
             print(f"Error updating status: {e}")
