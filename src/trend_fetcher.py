@@ -135,6 +135,9 @@ class TrendFetcher:
                 headers=headers,
                 timeout=10,
             )
+            if resp.status_code == 403:
+                print("Reddit: blocked (datacenter IP) — skipping")
+                return []
             resp.raise_for_status()
             posts = resp.json().get("data", {}).get("children", [])
 
@@ -193,7 +196,11 @@ class TrendFetcher:
                         source=source,
                     ))
             except Exception as e:
-                print(f"DDG error for '{query}': {e}")
+                err = str(e)
+                if "429" in err or "Ratelimit" in err:
+                    print(f"DDG: rate-limited on '{query}' — skipping")
+                else:
+                    print(f"DDG error for '{query}': {e}")
                 continue
 
         print(f"DuckDuckGo: fetched {len(items)} articles")
