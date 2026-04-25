@@ -1,55 +1,31 @@
 """Content generation pipeline orchestrating the full workflow."""
 
-import random
 import time
 from typing import Optional
 
 from src.ai_service import AIService
 from src.gsheet_client import GSheetClient
 from src.image_generator import ImageGenerator
+from src.personas import pick_hook, pick_persona, pick_pillar
 from src.storage_client import StorageClient
 from src.trend_fetcher import TrendFetcher, TrendItem
 
-POST_FORMATS = {
-    "hot_take": """
-        Write a HOT TAKE post reacting to this news. Take a contrarian or bold stance.
-        Start with a strong opinion that challenges conventional wisdom.
-        Example opener: "Unpopular opinion:" or "Hot take:" or "Everyone's excited about X, but..."
-    """,
-    "implication": """
-        Write a post explaining what this news ACTUALLY MEANS for developers in their daily work.
-        Connect the headline to real, practical impact on coding/engineering workflows.
-        Example opener: "What this actually means for your codebase:" or "Here's why devs should care:"
-    """,
-    "prediction": """
-        Write a BOLD PREDICTION post based on this news.
-        Project forward what this could mean for the industry in 6-12 months.
-        Example opener: "Calling it now:" or "Mark my words:" or "This is the beginning of..."
-    """,
-    "reaction": """
-        Write an AUTHENTIC REACTION post from the perspective of a senior software engineer.
-        Share a genuine thought or personal insight triggered by this news.
-        Example opener: "As someone who's been building for 10+ years..." or "My honest reaction:"
-    """,
-    "lesson": """
-        Write a LESSON LEARNED post that extracts a timeless principle from this news.
-        Connect the current event to a broader truth about software engineering.
-        Example opener: "This proves what I've always said:" or "The real lesson here:"
-    """,
-}
-
 
 class ContentPipeline:
-    """Pipeline for generating social media content and logging to Google Sheets."""
+    """Pipeline for generating dual-platform social media content and logging to Google Sheets."""
 
     def __init__(self, config: dict):
-        """Initialize pipeline with configuration."""
         self.config = config
         self.delay_seconds = config.get("LLM_CALL_DELAY_SECONDS", 15)
 
+        content_models = [
+            m.strip()
+            for m in str(config.get("CONTENT_MODEL", "z-ai/glm-4.5-air:free")).split(",")
+            if m.strip()
+        ]
         self.ai_service = AIService(
             api_key=str(config.get("OPENROUTER_API", "")),
-            model_name=str(config.get("CONTENT_MODEL", "arcee-ai/trinity-large-preview:free")),
+            models=content_models,
         )
         self.image_generator = ImageGenerator(
             cloudflare_account_id=config.get("CLOUDFLARE_ACCOUNT_ID"),
@@ -66,52 +42,96 @@ class ContentPipeline:
         )
 
     def _delay(self):
-        """Sleep to respect rate limits."""
         print(f"Waiting {self.delay_seconds}s to respect rate limits...")
         time.sleep(self.delay_seconds)
 
-    def _generate_post_content(self, trend: TrendItem) -> Optional[str]:
-        """Generate post text content based on a trending news item."""
-        format_name = random.choice(list(POST_FORMATS.keys()))
-        format_instructions = POST_FORMATS[format_name]
-        print(f"Using post format: {format_name}")
+    def _build_prompt(self, trend: TrendItem) -> tuple[str, str]:
+        """Build the dual-platform prompt. Returns (prompt, pillar_name)."""
+        persona = pick_persona()
+        pillar = pick_pillar()
+        hook = pick_hook()
+        is_tool_reveal = pillar["name"] == "tool_reveal"
 
-        prompt = f"""
-        You are a tech thought leader with 100K+ followers on LinkedIn/X. Your posts consistently go viral
-        because they're insightful, relatable, and spark discussion among software engineers and tech professionals.
+        print(f"Persona: {persona['name']} | Pillar: {pillar['name']}")
 
-        **NEWS TO REACT TO:**
-        Headline: {trend.title}
-        Summary: {trend.body}
-        Source: {trend.source}
+        instagram_cta = (
+            "End with: 'Link in bio if you want the unfair advantage.'"
+            if is_tool_reveal
+            else "End with: 'Save this if your next interview is within 30 days.'"
+        )
 
-        **POST FORMAT:**
-        {format_instructions}
+        prompt = f"""Do not show reasoning or chain-of-thought. Output ONLY the final JSON.
 
-        **TARGET AUDIENCE:**
-        Software engineers, data engineers, DevOps, ML engineers, tech leads, CTOs, and tech-curious professionals.
-        They scroll fast - you have 1 second to hook them.
+You are {persona['name']}: {persona['voice_description']}
 
-        **VIRALITY BEST PRACTICES:**
-        - First line is EVERYTHING - make it scroll-stopping (bold claim, surprising stat, or relatable pain)
-        - Be specific, not generic (name actual technologies, real scenarios)
-        - Write like you talk - conversational, not corporate
-        - Create tension or curiosity that makes people want to engage
-        - End with a question or provocative statement that invites replies
-        - Use short sentences. Break up ideas. Like this.
+Your go-to phrases (use 1-2 naturally, don't force all): {", ".join(persona['pet_phrases'])}
+Never do this: {persona['taboos']}
 
-        **CONSTRAINTS:**
-        - STRICTLY 200-270 characters (we need room for links)
-        - No hashtags
-        - No "As an AI" or similar phrases
-        - No asterisks for emphasis (*word*)
-        - No emojis
-        - Output ONLY the post text, nothing else
-        """
-        return self.ai_service.generate_response(prompt)
+CONTENT ANGLE: {pillar['description']}
+
+HOOK STYLE TO USE: "{hook}"
+Weave this hook into your opening naturally — adapt it to fit the topic. Don't use it verbatim if it doesn't fit.
+
+NEWS / TOPIC:
+  Title: {trend.title}
+  Context: {trend.body}
+  Source: {trend.source}
+
+YOUR READER: A software engineer right now in an active job search — anxious, grinding interviews,
+scrolling at midnight. They want to feel seen, then get one tactical edge they didn't have before.
+
+---
+
+Generate TWO posts about the same core insight. The same image will be used for both.
+
+X POST RULES:
+- MAXIMUM 260 characters — count every character including spaces and punctuation
+- Hook in the first 8 words. No warm-up sentences.
+- Conversational, contractions OK, line breaks welcome
+- Zero hashtags. Zero emojis. No "As an AI". No asterisks for bold.
+- End with a sharp question, punchline, or cliffhanger — never a flat statement.
+
+INSTAGRAM POST RULES:
+- 700–1100 characters in the body (not counting hashtags)
+- Story arc: bold hook line → tension or relatable pain → insight/reveal → 2-3 tactical bullets → CTA
+- Use blank lines between sections (Instagram eats walls of text)
+- 1-2 emojis max, only if they earn their spot
+- {instagram_cta}
+- On a new line after the body, add 6-8 hashtags from this set (pick the most relevant):
+  #techinterview #leetcode #faang #softwareengineer #codinginterview #systemdesign
+  #techjobs #careeradvice #interviewprep #h1b #layoffrecovery #newgrad #swe #jobsearch
+
+OUTPUT FORMAT — return only valid JSON, no markdown fences, no explanation:
+{{"x_post": "<x text here>", "instagram_post": "<instagram text here>"}}"""
+
+        return prompt, pillar["name"]
+
+    def _generate_dual_platform_content(self, trend: TrendItem) -> Optional[dict]:
+        """Generate X and Instagram post content for a trending topic."""
+        prompt, _ = self._build_prompt(trend)
+        result = self.ai_service.generate_dual_platform_content(prompt)
+        if not result:
+            return None
+
+        x_post = result.get("x_post", "").strip().strip('"\'')
+        ig_post = result.get("instagram_post", "").strip().strip('"\'')
+
+        if not x_post or not ig_post:
+            print("Model returned empty x_post or instagram_post")
+            return None
+
+        # Hard-trim X post to 280 chars at a sentence boundary if over limit
+        if len(x_post) > 280:
+            trimmed = x_post[:277]
+            last_sentence = max(trimmed.rfind(". "), trimmed.rfind("? "), trimmed.rfind("! "))
+            x_post = (trimmed[:last_sentence + 1] if last_sentence > 100 else trimmed).rstrip() + "..."
+
+        print(f"X post ({len(x_post)} chars): {x_post[:80]}...")
+        print(f"Instagram post ({len(ig_post)} chars): {ig_post[:80]}...")
+        return {"x_post": x_post, "instagram_post": ig_post}
 
     def _generate_and_upload_image(self, trend: TrendItem, post_content: str) -> Optional[str]:
-        """Generate image for the post and upload to imgBB, return public URL."""
+        """Generate image for the post and upload it, returning the public URL."""
         image_prompt = self.ai_service.generate_image_prompt(trend.title, post_content=post_content)
         if not image_prompt:
             print("Failed to generate image prompt")
@@ -143,22 +163,26 @@ class ContentPipeline:
             print(f"Topic: {trend.title}")
             print(f"Source: {trend.source}")
 
-            post_content = self._generate_post_content(trend)
-            if not post_content:
+            result = self._generate_dual_platform_content(trend)
+            if not result:
                 print(f"Failed to generate content for topic: {trend.title}")
-                self.gsheet_client.append_row(trend.title, "", None, status="FAILED")
+                self.gsheet_client.append_row(trend.title, "", "", None, status="FAILED")
                 continue
-
-            post_content = post_content.strip().strip('"\'')
-            print(f"Generated post content: {post_content[:100]}...")
 
             self._delay()
 
-            image_url = self._generate_and_upload_image(trend, post_content)
+            # Use the richer Instagram post as context for the image prompt
+            image_url = self._generate_and_upload_image(trend, result["instagram_post"])
 
             keywords_col = f"{trend.title[:50]}" + (f" | {trend.url}" if trend.url else "")
             status = "PENDING" if image_url else "FAILED"
-            self.gsheet_client.append_row(keywords_col, post_content, image_url, status=status)
+            self.gsheet_client.append_row(
+                keywords_col,
+                result["x_post"],
+                result["instagram_post"],
+                image_url,
+                status=status,
+            )
 
             if i < len(trends) - 1:
                 self._delay()

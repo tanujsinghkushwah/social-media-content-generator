@@ -1,15 +1,30 @@
 """Application constants."""
 KEYWORDS = [
-    "Interview", "Software Engineer", "Leetcode", 
-    "System Design", "High Level Design", "Low Level Design", 
-    "AI", "Blockchain", "Crypto", "Cloud Computing", "DevOps",
-    "Microservices", "Database", "Caching", "Operating Systems",
-    "Kubernetes", "Docker", "Machine Learning", "Tech News", "Agentic Systems", "Tech History"
+    "behavioral interview tips",
+    "system design interview framework",
+    "FAANG offer negotiation",
+    "coding interview anxiety",
+    "LeetCode patterns for interviews",
+    "resume gaps software engineer",
+    "technical interview preparation",
+    "software engineer job market 2025",
+    "STAR method behavioral questions",
+    "salary negotiation software engineer",
+    "tech layoffs job search",
+    "H1B OPT job hunting tips",
+    "career switcher tech interview",
+    "bootcamp grad first tech job",
+    "mock interview practice",
+    "system design scalability",
+    "FAANG interview process",
+    "software engineer offer evaluation",
+    "interview failure recovery",
+    "senior engineer interview tips",
 ]
 
 ULTIMATE_FALLBACK_DEFAULTS = {
     'IMAGE_MODEL': '@cf/black-forest-labs/flux-1-schnell',
-    'CONTENT_MODEL': 'arcee-ai/trinity-large-preview:free',
+    'CONTENT_MODEL': 'openai/gpt-oss-120b:free,nvidia/nemotron-3-super-120b-a12b:free,z-ai/glm-4.5-air:free',
     'OPENROUTER_API': '',
     'CLOUDFLARE_ACCOUNT_ID': '',
     'CLOUDFLARE_API_TOKEN': '',
