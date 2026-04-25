@@ -3,8 +3,10 @@
 import random
 import re
 import time
+import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from typing import List, Optional
+from urllib.parse import quote_plus
 
 import requests
 from duckduckgo_search import DDGS
@@ -171,6 +173,69 @@ class TrendFetcher:
             print(f"Reddit fetch error: {e}")
             return []
 
+    def _fetch_google_news_rss(self, limit: int = 15) -> List[TrendItem]:
+        """Fetch interview/hiring-relevant articles via Google News RSS — no auth, CI-safe."""
+        queries = [
+            "tech layoffs job cuts 2025",
+            "software engineer interview tips",
+            "FAANG hiring freeze or expansion",
+            "tech salary negotiation offer",
+            "software engineer job market",
+        ]
+        items: List[TrendItem] = []
+        for query in random.sample(queries, min(3, len(queries))):
+            try:
+                url = f"https://news.google.com/rss/search?q={quote_plus(query)}&hl=en-US&gl=US&ceid=US:en"
+                resp = requests.get(url, timeout=10, headers={"User-Agent": "Mozilla/5.0"})
+                resp.raise_for_status()
+                root = ET.fromstring(resp.content)
+                for item in root.findall(".//item")[:5]:
+                    title = (item.findtext("title") or "").strip()
+                    desc = re.sub(r"<[^>]+>", "", item.findtext("description") or "").strip()
+                    link = (item.findtext("link") or "").strip()
+                    source_el = item.find("source")
+                    source = source_el.text if source_el is not None else "Google News"
+                    if title and len(title) > 10:
+                        items.append(TrendItem(title=title, body=desc[:300], url=link, source=source))
+                if len(items) >= limit:
+                    break
+            except Exception as e:
+                print(f"Google News RSS error for '{query}': {e}")
+                continue
+        print(f"Google News RSS: fetched {len(items)} articles")
+        return items[:limit]
+
+    def _fetch_devto(self, limit: int = 10) -> List[TrendItem]:
+        """Fetch trending tech/career articles from Dev.to — free, no auth, CI-safe."""
+        items: List[TrendItem] = []
+        tags = ["career", "interviews", "jobsearch", "codenewbie", "productivity"]
+        for tag in random.sample(tags, min(2, len(tags))):
+            try:
+                resp = requests.get(
+                    f"https://dev.to/api/articles?top=7&tag={tag}&per_page=10",
+                    timeout=10,
+                    headers={"User-Agent": "InterviewGenieBot/1.0"},
+                )
+                resp.raise_for_status()
+                for art in resp.json():
+                    title = art.get("title", "").strip()
+                    desc = art.get("description", "").strip()
+                    url = art.get("url", "")
+                    if title and len(title) > 10:
+                        items.append(TrendItem(
+                            title=title,
+                            body=desc[:300] or f"Trending on Dev.to: {title}",
+                            url=url,
+                            source="Dev.to",
+                        ))
+                if len(items) >= limit:
+                    break
+            except Exception as e:
+                print(f"Dev.to error for tag '{tag}': {e}")
+                continue
+        print(f"Dev.to: fetched {len(items)} articles")
+        return items[:limit]
+
     def _fetch_duckduckgo(self, post_count: int) -> List[TrendItem]:
         """Fetch interview/hiring relevant news from DuckDuckGo."""
         items: List[TrendItem] = []
@@ -211,21 +276,20 @@ class TrendFetcher:
         all_items: List[TrendItem] = []
         seen_titles: List[str] = []
 
-        # Priority order: HN > Reddit > DDG (most authentic interviewee voice first)
-        for item in self._fetch_hackernews(limit=post_count + 5):
-            if not self._is_duplicate(item.title, seen_titles):
-                seen_titles.append(item.title)
-                all_items.append(item)
-
-        for item in self._fetch_reddit_cscareerquestions(limit=post_count + 5):
-            if not self._is_duplicate(item.title, seen_titles):
-                seen_titles.append(item.title)
-                all_items.append(item)
-
-        for item in self._fetch_duckduckgo(post_count):
-            if not self._is_duplicate(item.title, seen_titles):
-                seen_titles.append(item.title)
-                all_items.append(item)
+        # Priority order: HN > Google News > Dev.to > Reddit > DDG
+        # Google News and Dev.to are CI-safe (no IP blocks); Reddit and DDG may fail in CI
+        sources = [
+            self._fetch_hackernews(limit=post_count + 5),
+            self._fetch_google_news_rss(limit=post_count + 5),
+            self._fetch_devto(limit=post_count + 5),
+            self._fetch_reddit_cscareerquestions(limit=post_count + 5),
+            self._fetch_duckduckgo(post_count),
+        ]
+        for source_items in sources:
+            for item in source_items:
+                if not self._is_duplicate(item.title, seen_titles):
+                    seen_titles.append(item.title)
+                    all_items.append(item)
 
         # Fallback to curated interview keywords if sources ran dry
         if len(all_items) < post_count:
