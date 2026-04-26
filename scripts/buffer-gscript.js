@@ -35,10 +35,15 @@ const CONFIG = {
   IST_OFFSET_MINUTES: 330,  // IST = UTC+5:30
   TWITTER_MAX_CHARS:  278,  // Hard limit 280, 2-char buffer
 
-  SCHEDULE_SLOTS_IST: [
-    { hour: 22, minute: 30, label: "10:30 PM IST" },
-    { hour: 18, minute: 30, label: "6:30 PM IST"  },
-    { hour:  2, minute: 30, label: "2:30 AM IST"  },
+  SCHEDULE_SLOTS_WEEKDAY: [
+    { hour: 18, minute:  0, label: "6:00 PM IST"  },
+    { hour: 19, minute: 30, label: "7:30 PM IST"  },
+    { hour: 21, minute:  0, label: "9:00 PM IST"  },
+  ],
+  SCHEDULE_SLOTS_WEEKEND: [
+    { hour: 11, minute:  0, label: "11:00 AM IST" },
+    { hour: 13, minute:  0, label: "1:00 PM IST"  },
+    { hour: 17, minute:  0, label: "5:00 PM IST"  },
   ],
 };
 
@@ -53,6 +58,13 @@ function schedulePostsToBuffer() {
 
   const data = sheet.getDataRange().getValues();
   const now  = new Date();
+
+  // Determine weekday vs weekend in IST (0 = Sun, 6 = Sat)
+  const istNow   = new Date(now.getTime() + CONFIG.IST_OFFSET_MINUTES * 60000);
+  const dayOfWeek = istNow.getUTCDay();
+  const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+  const slots     = isWeekend ? CONFIG.SCHEDULE_SLOTS_WEEKEND : CONFIG.SCHEDULE_SLOTS_WEEKDAY;
+  Logger.log(`📅 Day: ${["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][dayOfWeek]} IST → using ${isWeekend ? "weekend" : "weekday"} slots`);
 
   // ── Collect up to 3 rows where Status ≠ COMPLETED ──
   const HEADER_SENTINELS = new Set(["date (ist)", "x post", "instagram post", "topic/keywords"]);
@@ -80,7 +92,7 @@ function schedulePostsToBuffer() {
 
   pendingRows.forEach(({ rowIndex, row }, idx) => {
     const imageUrl = extractHyperlinkUrl_(sheet, rowIndex, CONFIG.COL_IMAGE);
-    const slot     = CONFIG.SCHEDULE_SLOTS_IST[idx];
+    const slot     = slots[idx];
     const dueAt    = buildDueAt_(now, slot);
 
     Logger.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
@@ -289,18 +301,19 @@ function extractHyperlinkUrl_(sheet, rowIndex, colIndex) {
 
 // ─────────────────────────────────────────────────────────────
 //  Build UTC ISO timestamp — auto-advances if slot already passed
+//  Assumes GAS project timezone = Asia/Kolkata (IST):
+//  setHours/getDate operate in IST, toISOString() returns UTC.
 // ─────────────────────────────────────────────────────────────
 function buildDueAt_(nowUtc, slot) {
-  const istNow    = new Date(nowUtc.getTime() + CONFIG.IST_OFFSET_MINUTES * 60000);
-  const candidate = new Date(istNow);
-  candidate.setHours(slot.hour, slot.minute, 0, 0);
+  const candidate = new Date(nowUtc);
+  candidate.setHours(slot.hour, slot.minute, 0, 0);  // sets IST time
 
-  if (candidate.getTime() - istNow.getTime() < 5 * 60 * 1000) {
+  if (candidate.getTime() - nowUtc.getTime() < 5 * 60 * 1000) {
     candidate.setDate(candidate.getDate() + 1);
     Logger.log(`   ⏩ ${slot.label} already passed — pushed to tomorrow IST.`);
   }
 
-  return new Date(candidate.getTime() - CONFIG.IST_OFFSET_MINUTES * 60000).toISOString();
+  return candidate.toISOString();  // internally stored as correct UTC
 }
 
 // ─────────────────────────────────────────────────────────────
