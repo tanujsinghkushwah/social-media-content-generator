@@ -45,7 +45,9 @@ class GSheetClient:
             first_row = self.sheet.row_values(1)
             if not first_row:
                 return False
-            return first_row[:len(HEADERS)] == HEADERS
+            # Normalize whitespace to avoid false negatives from trailing spaces
+            normalized = [v.strip() for v in first_row[:len(HEADERS)]]
+            return normalized == HEADERS
         except Exception:
             return False
 
@@ -56,8 +58,18 @@ class GSheetClient:
 
         try:
             if not self._has_valid_headers():
-                self.sheet.insert_row(HEADERS, index=1)
-                print("Added column headers to sheet")
+                # Only safe to insert when sheet is truly empty — inserting into a
+                # sheet with existing data shifts all rows down, making old row 1
+                # appear as a data row (causing header text to be posted as content).
+                all_values = self.sheet.get_all_values()
+                is_empty = not all_values or all(
+                    not any(cell.strip() for cell in row) for row in all_values
+                )
+                if is_empty:
+                    self.sheet.insert_row(HEADERS, index=1)
+                    print("Added column headers to sheet")
+                else:
+                    print("Warning: Sheet has data but headers don't match — skipping insert to avoid row shift")
             else:
                 print("Headers already exist")
             self._format_header_row()
