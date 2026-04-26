@@ -10,7 +10,7 @@
 //    F = Status  (PENDING → COMPLETED / FAILED / NO IMAGE)
 //
 //  - Picks up to 3 rows where Status ≠ COMPLETED
-//  - Posts C to Twitter, D to Instagram independently
+//  - Posts C to Twitter, D to Instagram + LinkedIn independently
 //  - Updates col F: COMPLETED / FAILED / PARTIAL / NO IMAGE
 // ============================================================
 
@@ -23,7 +23,7 @@ const CONFIG = {
   CHANNELS: [
     { platform: "twitter",   id: "69e72c5f031bfa423c27a512", contentCol: 3 },  // C
     { platform: "instagram", id: "69e72c2d031bfa423c27a4a5", contentCol: 4 },  // D
-    // { platform: "linkedin", id: "69e72c82031bfa423c27a560", contentCol: 4 }, // use D or add col
+    { platform: "linkedin",  id: "69e72c82031bfa423c27a560", contentCol: 4 },  // D
   ],
 
   SHEET_NAME:     "Sheet1",
