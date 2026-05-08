@@ -40,14 +40,18 @@ def run_single_post(topic: Optional[str] = None, skip_image: bool = False):
         trend = trends[0]
         print(f"Fetched topic: {trend.title} ({trend.source})")
 
-    print("\n--- Generating dual-platform content ---")
-    result = pipeline._generate_dual_platform_content(trend)
+    print("\n--- Generating multi-platform content ---")
+    result = pipeline._generate_multi_platform_content(trend)
     if not result:
         print("ERROR: Content generation failed.")
         sys.exit(1)
 
     print(f"\nX Post ({len(result['x_post'])} chars):\n{result['x_post']}")
     print(f"\nInstagram Post ({len(result['instagram_post'])} chars):\n{result['instagram_post']}")
+    if result["linkedin_post"]:
+        print(f"\nLinkedIn Post ({len(result['linkedin_post'])} chars):\n{result['linkedin_post']}")
+    else:
+        print("\nLinkedIn Post: <empty — will be skipped>")
 
     image_url = None
     if not skip_image:
@@ -60,13 +64,17 @@ def run_single_post(topic: Optional[str] = None, skip_image: bool = False):
             print("WARNING: Image generation failed — row will be appended without image.")
 
     keywords_col = f"{trend.title[:50]}" + (f" | {trend.url}" if trend.url else "")
-    status = "PENDING" if image_url else ("PENDING_NO_IMAGE" if not skip_image else "PENDING")
+    status_instagram = "PENDING" if image_url else ("NO IMAGE" if not skip_image else "PENDING")
+    status_linkedin = "PENDING" if result["linkedin_post"] else "SKIPPED"
     pipeline.gsheet_client.append_row(
         keywords_col,
         result["x_post"],
         result["instagram_post"],
+        result["linkedin_post"],
         image_url,
-        status=status,
+        status_x="PENDING",
+        status_instagram=status_instagram,
+        status_linkedin=status_linkedin,
     )
     print("\nRow appended to spreadsheet.")
 

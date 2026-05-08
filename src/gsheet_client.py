@@ -15,7 +15,19 @@ SCOPES = [
 
 IST = pytz.timezone("Asia/Kolkata")
 
-HEADERS = ["Date (IST)", "Topic/Keywords", "X Post", "Instagram Post", "Image URL", "Status"]
+HEADERS = [
+    "Date (IST)",
+    "Topic/Keywords",
+    "X Post",
+    "Instagram Post",
+    "LinkedIn Post",
+    "Image URL",
+    "Status X",
+    "Status Instagram",
+    "Status LinkedIn",
+]
+
+CHANNEL_STATUS_COLUMN = {"x": 7, "instagram": 8, "linkedin": 9}
 
 
 class GSheetClient:
@@ -81,7 +93,7 @@ class GSheetClient:
     def _format_header_row(self):
         """Format the header row with bold text and blue background."""
         try:
-            self.sheet.format("A1:F1", {
+            self.sheet.format("A1:I1", {
                 "textFormat": {
                     "bold": True,
                     "foregroundColor": {"red": 1, "green": 1, "blue": 1},
@@ -99,8 +111,11 @@ class GSheetClient:
         keywords: str,
         x_post: str,
         instagram_post: str,
+        linkedin_post: str,
         image_url: Optional[str],
-        status: str = "PENDING",
+        status_x: str = "PENDING",
+        status_instagram: str = "PENDING",
+        status_linkedin: str = "PENDING",
     ) -> bool:
         """Append a new row with post data to the sheet."""
         self._ensure_headers()
@@ -108,7 +123,17 @@ class GSheetClient:
         timestamp = datetime.now(IST).strftime("%Y-%m-%d %H:%M:%S")
         image_cell = f'=HYPERLINK("{image_url}", "View Image")' if image_url else ""
 
-        row = [timestamp, keywords, x_post, instagram_post, image_cell, status]
+        row = [
+            timestamp,
+            keywords,
+            x_post,
+            instagram_post,
+            linkedin_post,
+            image_cell,
+            status_x,
+            status_instagram,
+            status_linkedin,
+        ]
         try:
             self.sheet.append_row(row, value_input_option=ValueInputOption.user_entered)
             print(f"Appended row to sheet: {keywords[:30]}...")
@@ -117,11 +142,18 @@ class GSheetClient:
             print(f"Error appending row to sheet: {e}")
             return False
 
-    def update_status(self, row_index: int, status: str) -> bool:
-        """Update the status column for a given row."""
+    def update_channel_status(self, row_index: int, channel: str, status: str) -> bool:
+        """Update the per-channel status column for a given row.
+
+        channel must be one of "x", "instagram", "linkedin".
+        """
+        col = CHANNEL_STATUS_COLUMN.get(channel.lower())
+        if col is None:
+            print(f"Unknown channel: {channel}")
+            return False
         try:
-            self.sheet.update_cell(row_index, 6, status)
+            self.sheet.update_cell(row_index, col, status)
             return True
         except Exception as e:
-            print(f"Error updating status: {e}")
+            print(f"Error updating {channel} status: {e}")
             return False

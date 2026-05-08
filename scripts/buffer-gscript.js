@@ -1,17 +1,21 @@
 // ============================================================
-//  Buffer Post Scheduler — Google Apps Script  v7
+//  Buffer Post Scheduler — Google Apps Script  v8
 //
-//  Sheet columns (NEW STRUCTURE):
+//  Sheet columns (PER-CHANNEL STATUS):
 //    A = Date (IST)
 //    B = Topic/Keywords
 //    C = X Post content
 //    D = Instagram Post content
-//    E = Image URL  (=HYPERLINK("url","View Image") or plain URL)
-//    F = Status  (PENDING → COMPLETED / FAILED / NO IMAGE)
+//    E = LinkedIn Post content
+//    F = Image URL  (=HYPERLINK("url","View Image") or plain URL)
+//    G = Status X          (PENDING → COMPLETED / FAILED / SKIPPED)
+//    H = Status Instagram  (PENDING → COMPLETED / FAILED / NO IMAGE / SKIPPED)
+//    I = Status LinkedIn   (PENDING → COMPLETED / FAILED / SKIPPED)
 //
-//  - Picks up to 3 rows where Status ≠ COMPLETED
-//  - Posts C to Twitter, D to Instagram + LinkedIn independently
-//  - Updates col F: COMPLETED / FAILED / PARTIAL / NO IMAGE
+//  - Each channel is processed independently.
+//  - Picks up to 3 rows per channel where that channel's status is not terminal.
+//  - Terminal statuses (never retried): COMPLETED, FAILED, NO IMAGE, SKIPPED.
+//  - User backfills missed posts manually via postChannelNow(rowIndex, platform).
 // ============================================================
 
 // ─────────────────────────────────────────────────────────────
@@ -21,16 +25,15 @@ const CONFIG = {
   BUFFER_API_KEY: os.getenv("BUFFER_API_KEY"),  // ← your Buffer API key
 
   CHANNELS: [
-    { platform: "twitter",   id: "69e72c5f031bfa423c27a512", contentCol: 3 },  // C
-    { platform: "instagram", id: "69e72c2d031bfa423c27a4a5", contentCol: 4 },  // D
-    { platform: "linkedin",  id: "69e72c82031bfa423c27a560", contentCol: 4 },  // D
+    { platform: "twitter",   id: "69e72c5f031bfa423c27a512", contentCol: 3, statusCol: 7 },  // C → G
+    { platform: "instagram", id: "69e72c2d031bfa423c27a4a5", contentCol: 4, statusCol: 8 },  // D → H
+    { platform: "linkedin",  id: "69e72c82031bfa423c27a560", contentCol: 5, statusCol: 9 },  // E → I
   ],
 
   SHEET_NAME:     "Sheet1",
   SPREADSHEET_ID: "xxxxxxxx",
 
-  COL_IMAGE:   5,  // E — Image URL
-  COL_STATUS:  6,  // F — Single status column
+  COL_IMAGE: 6,  // F — Image URL
 
   IST_OFFSET_MINUTES: 330,  // IST = UTC+5:30
   TWITTER_MAX_CHARS:  278,  // Hard limit 280, 2-char buffer
@@ -47,8 +50,13 @@ const CONFIG = {
   ],
 };
 
+// Statuses that mean "do not retry this row for this channel".
+const TERMINAL_STATUSES = new Set(["COMPLETED", "FAILED", "NO IMAGE", "SKIPPED"]);
+
 // ─────────────────────────────────────────────────────────────
 //  MAIN FUNCTION — run manually or via daily trigger
+//  Each channel scans the sheet independently and posts up to 3 rows
+//  whose own per-channel status is not yet terminal.
 // ─────────────────────────────────────────────────────────────
 function schedulePostsToBuffer() {
   const sheet = SpreadsheetApp
@@ -60,76 +68,44 @@ function schedulePostsToBuffer() {
   const now  = new Date();
 
   // Determine weekday vs weekend in IST (0 = Sun, 6 = Sat)
-  const istNow   = new Date(now.getTime() + CONFIG.IST_OFFSET_MINUTES * 60000);
+  const istNow    = new Date(now.getTime() + CONFIG.IST_OFFSET_MINUTES * 60000);
   const dayOfWeek = istNow.getUTCDay();
   const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
   const slots     = isWeekend ? CONFIG.SCHEDULE_SLOTS_WEEKEND : CONFIG.SCHEDULE_SLOTS_WEEKDAY;
   Logger.log(`📅 Day: ${["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][dayOfWeek]} IST → using ${isWeekend ? "weekend" : "weekday"} slots`);
 
-  // ── Collect up to 3 rows where Status ≠ COMPLETED ──
-  const HEADER_SENTINELS = new Set(["date (ist)", "x post", "instagram post", "topic/keywords"]);
-  const pendingRows = [];
-  for (let i = 1; i < data.length; i++) {
-    const row    = data[i];
-    const status = String(row[CONFIG.COL_STATUS - 1]).trim().toUpperCase();
-    // Skip rows that look like duplicate header rows (col A or C contains header text)
-    const dateVal    = String(row[0]).trim().toLowerCase();
-    const xPostVal   = String(row[2]).trim().toLowerCase();
-    if (HEADER_SENTINELS.has(dateVal) || HEADER_SENTINELS.has(xPostVal)) {
-      Logger.log(`⚠️  Skipping row ${i + 1} — looks like a duplicate header row.`);
-      continue;
+  CONFIG.CHANNELS.forEach(ch => {
+    Logger.log(`\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+    Logger.log(`▶️  Processing channel: ${ch.platform.toUpperCase()}`);
+
+    const picks = [];
+    for (let i = 1; i < data.length && picks.length < 3; i++) {
+      const row = data[i];
+      if (looksLikeHeaderRow_(row)) {
+        Logger.log(`⚠️  Skipping row ${i + 1} — looks like a duplicate header row.`);
+        continue;
+      }
+      const status = String(row[ch.statusCol - 1] || "").trim().toUpperCase();
+      if (TERMINAL_STATUSES.has(status)) continue;
+      picks.push({ rowIndex: i + 1, row });
     }
-    if (status !== "COMPLETED") pendingRows.push({ rowIndex: i + 1, row });
-    if (pendingRows.length === 3) break;
-  }
 
-  if (pendingRows.length === 0) {
-    Logger.log("ℹ️  Nothing to schedule — all rows are COMPLETED.");
-    return;
-  }
+    if (picks.length === 0) {
+      Logger.log(`ℹ️  Nothing to schedule for ${ch.platform.toUpperCase()}.`);
+      return;
+    }
 
-  Logger.log(`📋 Found ${pendingRows.length} row(s) to process.\n`);
+    Logger.log(`📋 Found ${picks.length} row(s) to post on ${ch.platform.toUpperCase()}.`);
 
-  pendingRows.forEach(({ rowIndex, row }, idx) => {
-    const imageUrl = extractHyperlinkUrl_(sheet, rowIndex, CONFIG.COL_IMAGE);
-    const slot     = slots[idx];
-    const dueAt    = buildDueAt_(now, slot);
-
-    Logger.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
-    Logger.log(`📝 Row ${rowIndex} → ${slot.label}  (UTC: ${dueAt})`);
-    Logger.log(`   Image : ${imageUrl || "none"}`);
-
-    const results = [];  // track per-channel outcome
-
-    CONFIG.CHANNELS.forEach(ch => {
-      const content = String(row[ch.contentCol - 1]).trim();
-
-      if (!content) {
-        Logger.log(`\n   ⚠️  ${ch.platform.toUpperCase()}: empty content — skipping.`);
-        results.push("SKIPPED");
-        return;
-      }
-
-      if (ch.platform === "instagram" && !imageUrl) {
-        Logger.log(`\n   ⚠️  INSTAGRAM skipped — no image found in row ${rowIndex}.`);
-        results.push("NO IMAGE");
-        return;
-      }
-
-      Logger.log(`\n   📤 Posting to ${ch.platform.toUpperCase()}…`);
-      Logger.log(`   Text  : ${content.substring(0, 80)}…`);
-
-      const success = createBufferPost_(content, dueAt, imageUrl, ch.id, ch.platform);
-      results.push(success ? "COMPLETED" : "FAILED");
-      Logger.log(`   ${success ? "✅" : "❌"} ${ch.platform.toUpperCase()} → ${success ? "COMPLETED" : "FAILED"}`);
-
+    picks.forEach(({ rowIndex, row }, idx) => {
+      const slot     = slots[idx];
+      const dueAt    = buildDueAt_(now, slot);
+      const imageUrl = extractHyperlinkUrl_(sheet, rowIndex, CONFIG.COL_IMAGE);
+      const outcome  = postChannelForRow_(ch, rowIndex, row, imageUrl, dueAt, slot.label);
+      sheet.getRange(rowIndex, ch.statusCol).setValue(outcome);
+      Logger.log(`   📌 Row ${rowIndex} ${ch.platform.toUpperCase()} → ${outcome}`);
       Utilities.sleep(400);
     });
-
-    // ── Resolve single status from all channel results ──
-    const finalStatus = resolveStatus_(results);
-    sheet.getRange(rowIndex, CONFIG.COL_STATUS).setValue(finalStatus);
-    Logger.log(`\n   📌 Row ${rowIndex} status → ${finalStatus}`);
   });
 
   Logger.log(`\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
@@ -137,21 +113,45 @@ function schedulePostsToBuffer() {
 }
 
 // ─────────────────────────────────────────────────────────────
-//  Resolve a single status string from an array of per-channel results
-//  Priority: FAILED > PARTIAL > NO IMAGE > COMPLETED > SKIPPED
+//  Per-channel posting helper used by both the scheduler and postNow.
+//  Returns the per-channel status string to write back to the sheet.
 // ─────────────────────────────────────────────────────────────
-function resolveStatus_(results) {
-  if (results.every(r => r === "COMPLETED")) return "COMPLETED";
-  if (results.every(r => r === "FAILED"))    return "FAILED";
-  if (results.includes("FAILED"))            return "PARTIAL";
-  if (results.includes("NO IMAGE"))          return "NO IMAGE";
-  if (results.every(r => r === "SKIPPED"))   return "SKIPPED";
-  return "PARTIAL";
+function postChannelForRow_(ch, rowIndex, row, imageUrl, dueAt, slotLabel) {
+  const content = String(row[ch.contentCol - 1] || "").trim();
+
+  if (!content) {
+    Logger.log(`   ⚠️  ${ch.platform.toUpperCase()} row ${rowIndex}: empty content — SKIPPED.`);
+    return "SKIPPED";
+  }
+
+  if (ch.platform === "instagram" && !imageUrl) {
+    Logger.log(`   ⚠️  INSTAGRAM row ${rowIndex}: no image URL — NO IMAGE.`);
+    return "NO IMAGE";
+  }
+
+  Logger.log(`   📤 ${ch.platform.toUpperCase()} row ${rowIndex} → ${slotLabel || dueAt}`);
+  Logger.log(`      Text: ${content.substring(0, 80)}…`);
+
+  const success = createBufferPost_(content, dueAt, imageUrl, ch.id, ch.platform);
+  return success ? "COMPLETED" : "FAILED";
 }
 
 // ─────────────────────────────────────────────────────────────
-//  POST NOW — instantly publishes a single PENDING row
-//  Set TARGET_ROW below, then run postNow()
+//  Detect duplicate header rows so we don't post header text as content.
+// ─────────────────────────────────────────────────────────────
+const HEADER_SENTINELS_ = new Set([
+  "date (ist)", "topic/keywords", "x post", "instagram post", "linkedin post",
+]);
+function looksLikeHeaderRow_(row) {
+  const dateVal  = String(row[0] || "").trim().toLowerCase();
+  const xPostVal = String(row[2] || "").trim().toLowerCase();
+  return HEADER_SENTINELS_.has(dateVal) || HEADER_SENTINELS_.has(xPostVal);
+}
+
+// ─────────────────────────────────────────────────────────────
+//  POST NOW — instantly publishes a single row to all 3 channels,
+//  but only for channels whose per-channel status is non-terminal.
+//  Set TARGET_ROW below, then run postNow().
 // ─────────────────────────────────────────────────────────────
 
 // ⬇️ Set this to the sheet row number you want to post immediately
@@ -170,46 +170,53 @@ function postNow() {
   if (!row) { Logger.log(`❌ Row ${rowIndex} not found in sheet.`); return; }
 
   const imageUrl = extractHyperlinkUrl_(sheet, rowIndex, CONFIG.COL_IMAGE);
-
-  // Post immediately — dueAt = 60 seconds from now
-  const dueAt = new Date(Date.now() + 60 * 1000).toISOString();
+  const dueAt    = new Date(Date.now() + 60 * 1000).toISOString();
 
   Logger.log(`🚀 Posting row ${rowIndex} immediately…`);
   Logger.log(`   Image : ${imageUrl || "none"}`);
   Logger.log(`   Due   : ${dueAt}\n`);
 
-  const results = [];
-
   CONFIG.CHANNELS.forEach(ch => {
-    const content = String(row[ch.contentCol - 1]).trim();
-
-    if (!content) {
-      Logger.log(`⚠️  ${ch.platform.toUpperCase()}: empty content — skipping.`);
-      results.push("SKIPPED");
+    const status = String(row[ch.statusCol - 1] || "").trim().toUpperCase();
+    if (TERMINAL_STATUSES.has(status)) {
+      Logger.log(`   ⏭️  ${ch.platform.toUpperCase()} row ${rowIndex}: status ${status} — skipping.`);
       return;
     }
-
-    if (ch.platform === "instagram" && !imageUrl) {
-      Logger.log(`⚠️  INSTAGRAM skipped — no image URL in row ${rowIndex}.`);
-      sheet.getRange(rowIndex, CONFIG.COL_STATUS).setValue("NO IMAGE");
-      results.push("NO IMAGE");
-      return;
-    }
-
-    Logger.log(`📤 Posting to ${ch.platform.toUpperCase()}…`);
-    Logger.log(`   Text  : ${content.substring(0, 80)}…`);
-
-    const success = createBufferPost_(content, dueAt, imageUrl, ch.id, ch.platform);
-    results.push(success ? "COMPLETED" : "FAILED");
-    Logger.log(`${success ? "✅" : "❌"} ${ch.platform.toUpperCase()} → ${success ? "COMPLETED" : "FAILED"}\n`);
-
+    const outcome = postChannelForRow_(ch, rowIndex, row, imageUrl, dueAt, "now");
+    sheet.getRange(rowIndex, ch.statusCol).setValue(outcome);
+    Logger.log(`   📌 Row ${rowIndex} ${ch.platform.toUpperCase()} → ${outcome}`);
     Utilities.sleep(400);
   });
 
-  const finalStatus = resolveStatus_(results);
-  sheet.getRange(rowIndex, CONFIG.COL_STATUS).setValue(finalStatus);
-  Logger.log(`📌 Row ${rowIndex} status → ${finalStatus}`);
   Logger.log("🎉 postNow() done!");
+}
+
+// ─────────────────────────────────────────────────────────────
+//  MANUAL BACKFILL — re-fire a single channel for a single row,
+//  ignoring its current per-channel status. Use this to manually
+//  recover from a FAILED / NO IMAGE / SKIPPED entry.
+//
+//  Usage from the GAS editor:  postChannelNow(7, "instagram")
+// ─────────────────────────────────────────────────────────────
+function postChannelNow(rowIndex, platform) {
+  const ch = CONFIG.CHANNELS.find(c => c.platform === String(platform).toLowerCase());
+  if (!ch) { Logger.log(`❌ Unknown platform: ${platform}`); return; }
+
+  const sheet = SpreadsheetApp
+    .openById(CONFIG.SPREADSHEET_ID)
+    .getSheetByName(CONFIG.SHEET_NAME);
+  if (!sheet) { Logger.log("❌ Sheet not found."); return; }
+
+  const row = sheet.getDataRange().getValues()[rowIndex - 1];
+  if (!row) { Logger.log(`❌ Row ${rowIndex} not found.`); return; }
+
+  const imageUrl = extractHyperlinkUrl_(sheet, rowIndex, CONFIG.COL_IMAGE);
+  const dueAt    = new Date(Date.now() + 60 * 1000).toISOString();
+
+  Logger.log(`🔁 Manual backfill: ${ch.platform.toUpperCase()} row ${rowIndex}`);
+  const outcome = postChannelForRow_(ch, rowIndex, row, imageUrl, dueAt, "now");
+  sheet.getRange(rowIndex, ch.statusCol).setValue(outcome);
+  Logger.log(`📌 Row ${rowIndex} ${ch.platform.toUpperCase()} → ${outcome}`);
 }
 
 // ─────────────────────────────────────────────────────────────

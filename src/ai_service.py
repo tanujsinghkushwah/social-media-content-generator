@@ -46,49 +46,79 @@ class AIService:
         print("All models failed for generate_response.")
         return None
 
-    def _parse_dual_platform_json(self, raw: str) -> Optional[dict]:
-        """Extract {x_post, instagram_post} from a model response, tolerating chain-of-thought."""
+    def _parse_multi_platform_json(self, raw: str) -> Optional[dict]:
+        """Extract {x_post, instagram_post, linkedin_post?} from a model response.
+
+        Requires x_post and instagram_post; linkedin_post is optional and
+        defaults to "" if absent (caller will skip the LinkedIn channel).
+        Tolerates chain-of-thought wrappers and markdown fences.
+        """
         # Strip <think>...</think> blocks emitted by reasoning models
         cleaned = re.sub(r"<think>.*?</think>", "", raw, flags=re.DOTALL).strip()
         # Strip markdown code fences
         cleaned = re.sub(r"^```(?:json)?\s*|\s*```$", "", cleaned, flags=re.MULTILINE).strip()
 
+        def _normalize(data: dict) -> Optional[dict]:
+            if "x_post" in data and "instagram_post" in data:
+                return {
+                    "x_post": data["x_post"],
+                    "instagram_post": data["instagram_post"],
+                    "linkedin_post": data.get("linkedin_post", ""),
+                }
+            return None
+
         # Try whole response as JSON
         try:
-            data = json.loads(cleaned)
-            if "x_post" in data and "instagram_post" in data:
-                return data
+            normalized = _normalize(json.loads(cleaned))
+            if normalized:
+                return normalized
         except json.JSONDecodeError:
             pass
 
-        # Find all {...} blocks with both keys; try from last to first
-        # Thinking models output chain-of-thought before the final answer
-        candidates = list(re.finditer(r"\{[^{}]*\"x_post\"[^{}]*\}", cleaned, re.DOTALL))
-        for match in reversed(candidates):
+        # Balanced-brace scan: find every top-level {...} object containing
+        # "x_post" and try parsing from last to first (reasoning models put the
+        # final answer at the end).
+        candidates = []
+        depth = 0
+        start = -1
+        for i, ch in enumerate(cleaned):
+            if ch == "{":
+                if depth == 0:
+                    start = i
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+                if depth == 0 and start >= 0:
+                    block = cleaned[start : i + 1]
+                    if '"x_post"' in block:
+                        candidates.append(block)
+                    start = -1
+
+        for block in reversed(candidates):
             try:
-                data = json.loads(match.group(0))
-                if "x_post" in data and "instagram_post" in data:
-                    return data
+                normalized = _normalize(json.loads(block))
+                if normalized:
+                    return normalized
             except json.JSONDecodeError:
                 continue
 
         return None
 
-    def generate_dual_platform_content(self, prompt: str) -> Optional[dict]:
-        """Try each model in order until one returns parseable {x_post, instagram_post} JSON."""
+    def generate_multi_platform_content(self, prompt: str) -> Optional[dict]:
+        """Try each model in order until one returns parseable platform JSON."""
         for model in self.models:
             try:
-                raw = self._call_model(model, prompt, max_tokens=2000)
+                raw = self._call_model(model, prompt, max_tokens=2500)
                 if not raw:
                     print(f"{model}: empty response, trying next...")
                     continue
-                result = self._parse_dual_platform_json(raw)
+                result = self._parse_multi_platform_json(raw)
                 if result:
                     return result
                 print(f"{model}: unparseable JSON (tail: {raw[-150:]!r}), trying next...")
             except Exception as e:
                 print(f"{model}: error — {e}. Trying next...")
-        print("All models failed for generate_dual_platform_content.")
+        print("All models failed for generate_multi_platform_content.")
         return None
 
     def generate_image_prompt(

@@ -82,7 +82,7 @@ scrolling at midnight. They want to feel seen, then get one tactical edge they d
 
 ---
 
-Generate TWO posts about the same core insight. The same image will be used for both.
+Generate THREE posts about the same core insight. The same image will be used for all three.
 
 X POST RULES:
 - MAXIMUM 260 characters — count every character including spaces and punctuation
@@ -101,20 +101,30 @@ INSTAGRAM POST RULES:
   #techinterview #leetcode #faang #softwareengineer #codinginterview #systemdesign
   #techjobs #careeradvice #interviewprep #h1b #layoffrecovery #newgrad #swe #jobsearch
 
+LINKEDIN POST RULES:
+- 400–700 characters total — short and punchy, not a long story
+- Lead with a sharp insight or contrarian observation in line 1
+- 1 short anecdote OR 1 tactical bullet — pick one, not both
+- Conversational professional tone; first person OK; minimal emojis (0–1)
+- End with a one-line takeaway or pointed question
+- On a new line after the body, add 2–3 hashtags from this set (pick the most relevant):
+  #softwareengineering #techcareers #interviewprep #faang #leetcode #careeradvice #h1b
+
 OUTPUT FORMAT — return only valid JSON, no markdown fences, no explanation:
-{{"x_post": "<x text here>", "instagram_post": "<instagram text here>"}}"""
+{{"x_post": "<x text here>", "instagram_post": "<instagram text here>", "linkedin_post": "<linkedin text here>"}}"""
 
         return prompt, pillar["name"]
 
-    def _generate_dual_platform_content(self, trend: TrendItem) -> Optional[dict]:
-        """Generate X and Instagram post content for a trending topic."""
+    def _generate_multi_platform_content(self, trend: TrendItem) -> Optional[dict]:
+        """Generate X, Instagram, and LinkedIn post content for a trending topic."""
         prompt, _ = self._build_prompt(trend)
-        result = self.ai_service.generate_dual_platform_content(prompt)
+        result = self.ai_service.generate_multi_platform_content(prompt)
         if not result:
             return None
 
         x_post = result.get("x_post", "").strip().strip('"\'')
         ig_post = result.get("instagram_post", "").strip().strip('"\'')
+        li_post = result.get("linkedin_post", "").strip().strip('"\'')
 
         if not x_post or not ig_post:
             print("Model returned empty x_post or instagram_post")
@@ -128,7 +138,11 @@ OUTPUT FORMAT — return only valid JSON, no markdown fences, no explanation:
 
         print(f"X post ({len(x_post)} chars): {x_post[:80]}...")
         print(f"Instagram post ({len(ig_post)} chars): {ig_post[:80]}...")
-        return {"x_post": x_post, "instagram_post": ig_post}
+        if li_post:
+            print(f"LinkedIn post ({len(li_post)} chars): {li_post[:80]}...")
+        else:
+            print("LinkedIn post empty — channel will be skipped for this row")
+        return {"x_post": x_post, "instagram_post": ig_post, "linkedin_post": li_post}
 
     def _generate_and_upload_image(self, trend: TrendItem, post_content: str) -> Optional[str]:
         """Generate image for the post and upload it, returning the public URL."""
@@ -163,10 +177,19 @@ OUTPUT FORMAT — return only valid JSON, no markdown fences, no explanation:
             print(f"Topic: {trend.title}")
             print(f"Source: {trend.source}")
 
-            result = self._generate_dual_platform_content(trend)
+            result = self._generate_multi_platform_content(trend)
             if not result:
                 print(f"Failed to generate content for topic: {trend.title}")
-                self.gsheet_client.append_row(trend.title, "", "", None, status="FAILED")
+                self.gsheet_client.append_row(
+                    trend.title,
+                    "",
+                    "",
+                    "",
+                    None,
+                    status_x="FAILED",
+                    status_instagram="FAILED",
+                    status_linkedin="FAILED",
+                )
                 continue
 
             self._delay()
@@ -175,13 +198,18 @@ OUTPUT FORMAT — return only valid JSON, no markdown fences, no explanation:
             image_url = self._generate_and_upload_image(trend, result["instagram_post"])
 
             keywords_col = f"{trend.title[:50]}" + (f" | {trend.url}" if trend.url else "")
-            status = "PENDING" if image_url else "FAILED"
+            # Instagram hard-requires an image; X and LinkedIn can post without one.
+            status_instagram = "PENDING" if image_url else "NO IMAGE"
+            status_linkedin = "PENDING" if result["linkedin_post"] else "SKIPPED"
             self.gsheet_client.append_row(
                 keywords_col,
                 result["x_post"],
                 result["instagram_post"],
+                result["linkedin_post"],
                 image_url,
-                status=status,
+                status_x="PENDING",
+                status_instagram=status_instagram,
+                status_linkedin=status_linkedin,
             )
 
             if i < len(trends) - 1:
