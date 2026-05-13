@@ -114,8 +114,8 @@ class ImageGenerator:
                          anchor="mm", 
                          align="center")
 
-                draw.text((width//2, height-40), "TechContentGen", 
-                         fill=(200, 200, 255), 
+                draw.text((width//2, height-40), "interviewgenie.net",
+                         fill=(200, 200, 255),
                          font=subtitle_font,
                          anchor="mm")
                 
@@ -133,14 +133,44 @@ class ImageGenerator:
             image.save(img_buffer, format='JPEG')
             return img_buffer.getvalue()
     
+    def _add_watermark(self, image_bytes: bytes) -> bytes:
+        """Stamp 'interviewgenie.net' in the bottom-right corner of the image."""
+        try:
+            img = Image.open(io.BytesIO(image_bytes)).convert("RGBA")
+            w, h = img.size
+            overlay = Image.new("RGBA", (w, h), (0, 0, 0, 0))  # type: ignore[arg-type]
+            draw = ImageDraw.Draw(overlay)
+            font_size = max(14, h // 40)
+            try:
+                font = ImageFont.truetype("arial.ttf", font_size)
+            except Exception:
+                try:
+                    font = ImageFont.load_default(size=font_size)  # type: ignore[call-arg]
+                except TypeError:
+                    font = ImageFont.load_default()
+            text = "interviewgenie.net"
+            bbox = draw.textbbox((0, 0), text, font=font)
+            tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
+            margin = max(10, h // 60)
+            x, y = w - tw - margin, h - th - margin
+            # Semi-transparent dark background pill for legibility
+            draw.rectangle((x - 4, y - 2, x + tw + 4, y + th + 2), fill=(0, 0, 0, 120))
+            draw.text((x, y), text, font=font, fill=(255, 255, 255, 200))
+            combined = Image.alpha_composite(img, overlay).convert("RGB")
+            buf = io.BytesIO()
+            combined.save(buf, format="JPEG", quality=92)
+            return buf.getvalue()
+        except Exception as e:
+            print(f"Watermark failed (non-fatal): {e}")
+            return image_bytes
+
     def generate_image(self, prompt: str, fallback_generator=None) -> Optional[bytes]:
         """Generate image via Cloudflare Workers AI, with Pillow fallback on failure."""
         image_bytes = self._generate_with_cloudflare(prompt)
         if image_bytes is not None:
             print(f"Image generated with Cloudflare Workers AI ({self.model}).")
-            return image_bytes
+            return self._add_watermark(image_bytes)
 
         print("Falling back to local image generation...")
-        if fallback_generator:
-            return fallback_generator(prompt, prompt[:30])
-        return self.create_tech_themed_image(prompt, prompt[:30])
+        result = fallback_generator(prompt, prompt[:30]) if fallback_generator else self.create_tech_themed_image(prompt, prompt[:30])
+        return self._add_watermark(result) if result else result

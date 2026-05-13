@@ -18,6 +18,10 @@ WRITER_PERSONAS = [
             "The 80/20 rule isn't just for business.",
         ],
         "taboos": "Never glorify 200+ LeetCode grinds. Never suggest 'just practice more' without specifics.",
+        "rhythm_cue": (
+            "Write in short punchy bursts. Short. Shorter. Then one longer sentence that lands the insight. "
+            "Short again. No sentence over 15 words except the one that matters most."
+        ),
     },
     {
         "name": "The Friendly Senior",
@@ -33,6 +37,11 @@ WRITER_PERSONAS = [
             "I failed this exact interview. Here's what I learned.",
         ],
         "taboos": "Never sound arrogant. Never make the reader feel stupid. Punch up, not down.",
+        "rhythm_cue": (
+            "Write conversationally, like you're texting a friend. Medium sentences mostly. "
+            "Occasionally drop a very short one for effect. Use contractions freely. "
+            "No bullet lists — flow as natural paragraphs."
+        ),
     },
     {
         "name": "The Hiring Manager Insider",
@@ -48,6 +57,11 @@ WRITER_PERSONAS = [
             "Interviewers never say this directly, but...",
         ],
         "taboos": "Never shame candidates. Frame insider info as empowering, not gatekeeping.",
+        "rhythm_cue": (
+            "Measured, deliberate pacing. Each sentence earns its place. "
+            "Use numbered lists or 'First... Second... Third' structure when laying out steps. "
+            "End paragraphs with a one-sentence kicker that reframes everything above it."
+        ),
     },
     {
         "name": "The Anti-Hustle Dev",
@@ -63,6 +77,11 @@ WRITER_PERSONAS = [
             "You don't need 6 months. You need 6 better moves.",
         ],
         "taboos": "Never demotivate. The target is broken systems, not people trying hard.",
+        "rhythm_cue": (
+            "Vary wildly between very short and medium sentences. Let irony breathe — "
+            "state the absurd thing plainly without explaining the joke. "
+            "One-liners are fine. Avoid any sentence that sounds 'motivational poster'."
+        ),
     },
     {
         "name": "The Visa-Clock Realist",
@@ -78,6 +97,11 @@ WRITER_PERSONAS = [
             "Urgency is a feature, not a bug.",
         ],
         "taboos": "Never be vague or inspirational-poster. Every post must have a concrete action.",
+        "rhythm_cue": (
+            "Tight, action-oriented. Lead every point with a verb. "
+            "Use 'Day 1:', 'Week 2:', or numbered steps when sequencing actions. "
+            "Short sentences only — if a sentence is over 12 words, split it."
+        ),
     },
 ]
 
@@ -147,7 +171,7 @@ CONTENT_PILLARS = [
     },
     {
         "name": "tool_reveal",
-        "weight": 1,
+        "weight": 2,
         "description": (
             "Soft product-adjacent post. Share a tactic, then organically mention that Interview Genie "
             "makes it easier without being salesy. The insight must stand alone — the tool mention is a bonus. "
@@ -174,6 +198,23 @@ HOOK_TEMPLATES = [
     "As someone who's reviewed 200+ coding interviews:",
     "This happened to me. It'll probably happen to you.",
 ]
+
+
+CTA_POOL = [
+    "Bookmark this for the morning of your next interview.",
+    "Forward this to a friend who's been grinding for months.",
+    "Save this — you'll want it 48 hours before your next call.",
+    "Tag the engineer in your group chat who needs to hear this.",
+    "Drop a comment: what's the one interview mistake you keep making?",
+    "Share this with your study group — most of them are missing this.",
+    "Screenshot the list. You'll thank yourself when nerves hit.",
+    "Which one surprised you most? Let me know in the comments.",
+]
+
+
+def pick_cta() -> str:
+    """Return a random Instagram CTA from the pool."""
+    return random.choice(CTA_POOL)
 
 
 def pick_persona() -> dict:

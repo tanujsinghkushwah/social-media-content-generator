@@ -1,5 +1,6 @@
 """Configuration management using Firebase Remote Config and environment variables."""
 
+import json
 import os
 import asyncio
 import firebase_admin
@@ -11,17 +12,38 @@ from src.constants import ULTIMATE_FALLBACK_DEFAULTS
 load_dotenv()
 
 
+def _resolve_database_url() -> str:
+    """Resolve Firebase RTDB URL — env override, else derive from service account project_id."""
+    env_url = os.getenv("FIREBASE_DB_URL")
+    if env_url:
+        return env_url
+    try:
+        with open("serviceAccountKey.json", "r") as f:
+            project_id = json.load(f).get("project_id", "")
+        if project_id:
+            return f"https://{project_id}-default-rtdb.firebaseio.com"
+    except Exception as e:
+        print(f"Could not derive Firebase DB URL from service account: {e}")
+    return ""
+
+
 def initialize_firebase_and_load_config():
-    """Initialize Firebase and load Remote Config template."""
+    """Initialize Firebase (with RTDB) and load Remote Config template."""
+    db_url = _resolve_database_url()
     try:
         firebase_admin.get_app()
     except ValueError:
         cred = credentials.Certificate('serviceAccountKey.json')
-        firebase_admin.initialize_app(cred)
-    
+        init_opts = {"databaseURL": db_url} if db_url else None
+        firebase_admin.initialize_app(cred, init_opts)
+        if db_url:
+            print(f"Firebase initialized with RTDB URL: {db_url}")
+        else:
+            print("Firebase initialized WITHOUT RTDB URL — counter/history will no-op.")
+
     print("Initializing Remote Config server template...")
     template = remote_config.init_server_template(default_config=ULTIMATE_FALLBACK_DEFAULTS)
-    
+
     print("Loading Remote Config template from Firebase backend...")
     try:
         asyncio.run(template.load())
@@ -63,8 +85,9 @@ def load_config():
         'IMGBB_API_KEY': get_config_value(evaluated_remote_config, 'IMGBB_API_KEY', ULTIMATE_FALLBACK_DEFAULTS['IMGBB_API_KEY']),
         'POST_COUNT': int(get_config_value(evaluated_remote_config, 'POST_COUNT', ULTIMATE_FALLBACK_DEFAULTS['POST_COUNT'])),
         'LLM_CALL_DELAY_SECONDS': int(get_config_value(evaluated_remote_config, 'LLM_CALL_DELAY_SECONDS', ULTIMATE_FALLBACK_DEFAULTS['LLM_CALL_DELAY_SECONDS'])),
+        'FIREBASE_DB_URL': _resolve_database_url(),
     }
-    
+
     return config
 
 
