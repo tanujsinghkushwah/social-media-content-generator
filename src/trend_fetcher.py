@@ -27,6 +27,14 @@ NEWS_QUERIES = [
     "software engineer career advice",
 ]
 
+# Broad topical filter — trend titles with zero matches are off-topic for our audience
+TOPICAL_FILTER = re.compile(
+    r"interview|engineer|hiring|job|layoff|faang|leetcode|salary|career|recruit|"
+    r"coder|swe|dev\b|ai\b|ml\b|machine learning|design|bootcamp|internship|offer|"
+    r"resume|tech|software|coding|compensation|h1b|opt|new grad",
+    re.IGNORECASE,
+)
+
 # Keywords that indicate interview/hiring relevance for HackerNews + Reddit filtering
 RELEVANCE_KEYWORDS = re.compile(
     r"hiring|layoff|laid off|interview|offer|faang|career|resume|job market|"
@@ -287,6 +295,9 @@ class TrendFetcher:
         ]
         for source_items in sources:
             for item in source_items:
+                if not TOPICAL_FILTER.search(item.title + " " + item.body[:100]):
+                    print(f"  [filtered] Off-topic trend dropped: {item.title[:60]}")
+                    continue
                 if not self._is_duplicate(item.title, seen_titles):
                     seen_titles.append(item.title)
                     all_items.append(item)
