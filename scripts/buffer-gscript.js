@@ -235,7 +235,7 @@ function createBufferPost_(text, dueAt, imageUrl, channelId, platform) {
   }
 
   const assetsBlock = hasImage
-    ? `assets: { images: [{ url: ${JSON.stringify(imageUrl)} }] },`
+    ? `assets: [{ image: { url: ${JSON.stringify(imageUrl)} } }],`
     : "";
 
   let metadataBlock = "";
