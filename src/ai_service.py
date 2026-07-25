@@ -27,6 +27,7 @@ class AIService:
             messages=[{"role": "user", "content": prompt}],
             max_tokens=max_tokens,
             api_key=self.api_key,
+            response_format={"type": "json_object"},
         )
         content = response.choices[0].message.content
         if not content:
@@ -55,8 +56,14 @@ class AIService:
         """
         # Strip <think>...</think> blocks emitted by reasoning models
         cleaned = re.sub(r"<think>.*?</think>", "", raw, flags=re.DOTALL).strip()
-        # Strip markdown code fences
-        cleaned = re.sub(r"^```(?:json)?\s*|\s*```$", "", cleaned, flags=re.MULTILINE).strip()
+        
+        # Try to extract exact JSON block from markdown fences first
+        match = re.search(r"```(?:json)?\s*(.*?)\s*```", cleaned, re.DOTALL | re.IGNORECASE)
+        if match:
+            cleaned = match.group(1).strip()
+        else:
+            # Fallback: strip markdown fences if they are at the edges
+            cleaned = re.sub(r"^```(?:json)?\s*|\s*```$", "", cleaned, flags=re.MULTILINE).strip()
 
         def _normalize(data: dict) -> Optional[dict]:
             if "x_post" in data and "instagram_post" in data:

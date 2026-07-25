@@ -173,7 +173,7 @@ scrolling at midnight. They want to feel seen, then get one tactical edge they d
 Generate THREE posts about the same core insight. The same image will be used for all three.
 
 X POST RULES:
-- MAXIMUM 260 characters — count every character including spaces and punctuation
+- VERY SHORT (max 3 short lines including link). DO NOT output any counting logic or reasoning.
 - Hook in the first 8 words. No warm-up sentences.
 - Conversational, contractions OK, line breaks welcome
 - Zero hashtags. Zero emojis. No "As an AI". No asterisks or markdown bold.
@@ -181,7 +181,7 @@ X POST RULES:
 {x_link_rule}
 
 INSTAGRAM POST RULES:
-- 700–1100 characters in the body (not counting hashtags)
+- Medium length body (about 3-4 paragraphs, do not count characters)
 - Story arc: bold hook line → tension or relatable pain → insight/reveal → 2-3 tactical bullets → CTA
 - Use blank lines between sections (Instagram eats walls of text)
 - 1-2 emojis max, only if they earn their spot
@@ -192,7 +192,7 @@ INSTAGRAM POST RULES:
   Full pool to choose from: {ig_full}
 
 LINKEDIN POST RULES:
-- 400–700 characters total — short and punchy, not a long story
+- Short and punchy, about 2 paragraphs, not a long story (do not count characters)
 - Lead with a sharp insight or contrarian observation in line 1
 - 1 short anecdote OR 1 tactical bullet — pick one, not both
 - Conversational professional tone; first person OK; minimal emojis (0–1)
@@ -200,8 +200,18 @@ LINKEDIN POST RULES:
 - On a new line after the body, add 2–3 hashtags from: {li_tags}
 {li_link_rule}
 
-OUTPUT FORMAT — return only valid JSON, no markdown fences, no explanation:
-{{"x_post": "<x text here>", "instagram_post": "<instagram text here>", "linkedin_post": "<linkedin text here>"}}"""
+OUTPUT FORMAT:
+You MUST return ONLY a single valid JSON object inside a ```json ... ``` markdown code block.
+Do NOT include any explanations, reasoning, or text outside the JSON block.
+Ensure all quotes inside the text are properly escaped.
+
+```json
+{{
+  "x_post": "<x text here>",
+  "instagram_post": "<instagram text here>",
+  "linkedin_post": "<linkedin text here>"
+}}
+```"""
 
         return prompt, pillar["name"]
 
