@@ -201,10 +201,12 @@ LINKEDIN POST RULES:
 {li_link_rule}
 
 OUTPUT FORMAT:
-You MUST return ONLY a single valid JSON object inside a ```json ... ``` markdown code block.
-Do NOT include any explanations, reasoning, or text outside the JSON block.
-Ensure all quotes inside the text are properly escaped.
+If you need to think, plan, or draft, you MUST put ALL of that text inside <think>...</think> tags.
+After reasoning, you MUST return ONLY a single valid JSON object inside a ```json ... ``` markdown code block.
 
+<think>
+(Optional reasoning or drafting goes here)
+</think>
 ```json
 {{
   "x_post": "<x text here>",
