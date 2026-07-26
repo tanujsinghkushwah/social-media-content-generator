@@ -204,16 +204,19 @@ OUTPUT FORMAT:
 If you need to think, plan, or draft, you MUST put ALL of that text inside <think>...</think> tags.
 After reasoning, you MUST return ONLY a single valid JSON object inside a ```json ... ``` markdown code block.
 
+EXAMPLE OUTPUT:
 <think>
-(Optional reasoning or drafting goes here)
+Drafting the posts according to the rules...
 </think>
 ```json
 {{
-  "x_post": "<x text here>",
-  "instagram_post": "<instagram text here>",
-  "linkedin_post": "<linkedin text here>"
+  "x_post": "Here is the short X post text.",
+  "instagram_post": "Hook for IG.\n\nTension.\n\nInsight.\n\n- Bullet 1\n- Bullet 2\n\nCTA.\n\n#hashtag1 #hashtag2",
+  "linkedin_post": "Insight for LinkedIn.\n\nAnecdote.\n\nTakeaway.\n\n#hashtag1 #hashtag2"
 }}
-```"""
+```
+
+YOUR RESPONSE:"""
 
         return prompt, pillar["name"]
 
