@@ -49,7 +49,7 @@ class ContentPipeline:
 
         content_models = [
             m.strip()
-            for m in str(config.get("CONTENT_MODEL", "google/gemma-4-26b-a4b-it:free")).split(",")
+            for m in str(config.get("CONTENT_MODEL", "deepseek/deepseek-v4-flash, google/gemma-4-26b-a4b-it:free")).split(",")
             if m.strip()
         ]
         self.ai_service = AIService(
