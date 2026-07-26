@@ -49,7 +49,7 @@ class ContentPipeline:
 
         content_models = [
             m.strip()
-            for m in str(config.get("CONTENT_MODEL", "z-ai/glm-4.5-air:free")).split(",")
+            for m in str(config.get("CONTENT_MODEL", "google/gemma-4-26b-a4b-it:free")).split(",")
             if m.strip()
         ]
         self.ai_service = AIService(
@@ -201,22 +201,17 @@ LINKEDIN POST RULES:
 {li_link_rule}
 
 OUTPUT FORMAT:
-If you need to think, plan, or draft, you MUST put ALL of that text inside <think>...</think> tags.
-After reasoning, you MUST return ONLY a single valid JSON object inside a ```json ... ``` markdown code block.
+You MUST return ONLY a single valid JSON object inside a ```json ... ``` markdown code block.
+Do NOT include any explanations, reasoning, or text outside the JSON block.
+Ensure all quotes inside the text are properly escaped.
 
-EXAMPLE OUTPUT:
-<think>
-Drafting the posts according to the rules...
-</think>
 ```json
 {{
-  "x_post": "Here is the short X post text.",
-  "instagram_post": "Hook for IG.\n\nTension.\n\nInsight.\n\n- Bullet 1\n- Bullet 2\n\nCTA.\n\n#hashtag1 #hashtag2",
-  "linkedin_post": "Insight for LinkedIn.\n\nAnecdote.\n\nTakeaway.\n\n#hashtag1 #hashtag2"
+  "x_post": "<x text here>",
+  "instagram_post": "<instagram text here>",
+  "linkedin_post": "<linkedin text here>"
 }}
-```
-
-YOUR RESPONSE:"""
+```"""
 
         return prompt, pillar["name"]
 
