@@ -22,9 +22,19 @@ class AIService:
     def _call_model(self, model: str, prompt: str, max_tokens: int) -> Optional[str]:
         """Make a single LiteLLM completion call. Raises on HTTP/API errors."""
         print(f"Trying model: {model}...")
+        
+        system_prompt = (
+            "You are a strict JSON data generator. You MUST output ONLY valid JSON. "
+            "Do not include any conversational text, explanations, or reasoning. "
+            "If you need to think, you must do it silently or strictly inside <think>...</think> tags."
+        )
+        
         response = litellm.completion(
             model=model,
-            messages=[{"role": "user", "content": prompt}],
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": prompt}
+            ],
             max_tokens=max_tokens,
             api_key=self.api_key,
             response_format={"type": "json_object"},
@@ -111,6 +121,49 @@ class AIService:
 
         return None
 
+    def _force_json_extraction(self, model: str, raw_text: str) -> Optional[dict]:
+        """Fallback: Ask the model to parse its own messy output into strict JSON."""
+        print(f"Attempting to force JSON extraction from messy output using {model}...")
+        prompt = f"""
+        You are a strict data extraction tool. Extract the final X post, Instagram post, and LinkedIn post from the following messy text.
+        Return ONLY a single valid JSON object inside a ```json block with the keys:
+        - "x_post"
+        - "instagram_post"
+        - "linkedin_post"
+        
+        Do NOT include any reasoning, <think> tags, or conversational text.
+        
+        MESSY TEXT TO PARSE:
+        {raw_text}
+        """
+        
+        system_prompt = "You are a strict JSON data extractor. Output ONLY valid JSON. No conversational text."
+        try:
+            response = litellm.completion(
+                model=model,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": prompt},
+                    {"role": "assistant", "content": "```json\n{\n"}
+                ],
+                max_tokens=1500,
+                api_key=self.api_key,
+                response_format={"type": "json_object"},
+            )
+            content = response.choices[0].message.content
+            print(f"DEBUG: Force extraction returned:\n{content}\n---")
+            if content:
+                # If the prefill was consumed and the response starts directly with keys, prepend the brace
+                if not content.strip().startswith("{") and not content.strip().startswith("```"):
+                    content = "{\n" + content
+                
+                # Recursively try to parse the new output
+                return self._parse_multi_platform_json(content)
+        except Exception as e:
+            print(f"Force extraction failed: {e}")
+            
+        return None
+
     def generate_multi_platform_content(self, prompt: str) -> Optional[dict]:
         """Try each model in order until one returns parseable platform JSON."""
         for model in self.models:
@@ -122,7 +175,14 @@ class AIService:
                 result = self._parse_multi_platform_json(raw)
                 if result:
                     return result
-                print(f"{model}: unparseable JSON (tail: {raw[-150:]!r}), trying next...")
+                    
+                # If first parse fails, try forcing extraction
+                print(f"{model}: unparseable JSON (tail: {raw[-150:]!r}), attempting force-extract...")
+                extracted = self._force_json_extraction(model, raw)
+                if extracted:
+                    return extracted
+                    
+                print(f"{model}: force extraction failed, trying next...")
             except Exception as e:
                 print(f"{model}: error — {e}. Trying next...")
         print("All models failed for generate_multi_platform_content.")
