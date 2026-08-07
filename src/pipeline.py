@@ -11,6 +11,7 @@ from src.image_generator import ImageGenerator
 from src.personas import HOOK_TEMPLATES, WRITER_PERSONAS, pick_cta, pick_hook, pick_pillar
 from src.post_history import PostHistory
 from src.sanitizer import sanitize_for_platform
+from src.site_index import SITE_INDEX_CONTEXT
 from src.storage_client import StorageClient
 from src.trend_fetcher import TrendFetcher, TrendItem
 
@@ -18,12 +19,12 @@ _IG_HASHTAG_POOL = [
     "#techinterview", "#leetcode", "#faang", "#softwareengineer", "#codinginterview",
     "#systemdesign", "#techjobs", "#careeradvice", "#interviewprep", "#h1b",
     "#layoffrecovery", "#newgrad", "#swe", "#jobsearch", "#softwareengineering",
-    "#techcareers", "#interviewgenie",
+    "#techcareers", "#interviewgenie", "#agenticai", "#machinelearning", "#stripeinterview",
 ]
 
 _LI_HASHTAG_POOL = [
     "#softwareengineering", "#techcareers", "#interviewprep", "#faang",
-    "#leetcode", "#careeradvice", "#h1b", "#interviewgenie",
+    "#leetcode", "#careeradvice", "#h1b", "#interviewgenie", "#agenticai", "#systemdesign",
 ]
 
 
@@ -167,6 +168,9 @@ YOUR READER: A software engineer right now in an active job search — anxious, 
 scrolling at midnight. They want to feel seen, then get one tactical edge they didn't have before.
 
 {brand_rule}
+
+{SITE_INDEX_CONTEXT}
+CRITICAL: If your chosen pillar is 'guide_teaser', 'company_deep_dive', or 'question_bank_challenge', you MUST explicitly reference the corresponding direct URL from the index above in the body of your Instagram and LinkedIn posts (e.g., "Check out the full guide here: [URL]"). Do not just say "check our guide", provide the exact URL!
 
 ---
 

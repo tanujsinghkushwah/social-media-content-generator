@@ -178,6 +178,33 @@ CONTENT_PILLARS = [
             "On Instagram: end with 'Link in bio if you want the unfair advantage.' On X: no product mention."
         ),
     },
+    {
+        "name": "company_deep_dive",
+        "weight": 3,
+        "description": (
+            "Focus on a specific company from the SITE_INDEX_CONTEXT (e.g., Stripe, Amazon, Google, etc.). "
+            "Highlight a unique or difficult aspect of their interview loop (like Amazon Leadership Principles or Stripe Bug Bash). "
+            "End by pointing the user to the company's specific Interview Genie prep guide if relevant."
+        ),
+    },
+    {
+        "name": "guide_teaser",
+        "weight": 3,
+        "description": (
+            "Pick a specific playbook from the GUIDES & PLAYBOOKS in the SITE_INDEX_CONTEXT (e.g., Agentic AI Engineering). "
+            "Share one high-signal, counter-intuitive insight that would be found in that guide. "
+            "Treat it as an 'insider leak' from the guide, and mention the full guide as the natural next step."
+        ),
+    },
+    {
+        "name": "question_bank_challenge",
+        "weight": 3,
+        "description": (
+            "Present a realistic, difficult interview question from one of the disciplines in the QUESTION BANK (e.g., System Design, Blockchain, Machine Learning). "
+            "Break down *why* candidates fail it, and give a 3-step framework for answering it. "
+            "Softly direct them to that specific Question Bank category on Interview Genie for more."
+        ),
+    },
 ]
 
 
